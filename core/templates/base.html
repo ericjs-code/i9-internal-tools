@@ -158,40 +158,70 @@
                 </li>
                 {% endif %}
 
-               <li class="nav-item mt-1">
+                <li class="nav-item mt-1">
                     <a class="nav-link {% if 'rh' not in request.path %}collapsed{% endif %} d-flex justify-content-between align-items-center"
                        data-bs-toggle="collapse" href="#menuRH" role="button"
                        aria-expanded="{% if 'rh' in request.path %}true{% else %}false{% endif %}"
                        aria-controls="menuRH">
-                        <span><i class="bi bi-person-badge me-2"></i> Recursos Humanos</span>
+                        <span><i class="bi bi-people me-2"></i> Recursos Humanos</span>
                         <i class="bi bi-chevron-down transition-icon"></i>
                     </a>
                     <div class="collapse {% if 'rh' in request.path %}show{% endif %}" id="menuRH" data-bs-parent="#sidebarMenu">
                         <ul class="nav flex-column ms-3 ps-2 border-start border-secondary mb-2 mt-1">
 
+                            <li class="nav-item mt-2 mb-1 px-3 text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: var(--laranja-principal); font-weight: bold;">
+                                Recrutamento
+                            </li>
+
                             <li class="nav-item">
-                                <a href="#" class="nav-link submenu-link">
-                                    <i class="bi bi-person-plus me-2"></i> Solicitar Vagas
+                                <a href="{% url 'portal_vagas' %}" target="_blank" class="nav-link submenu-link {% if 'vagas' in request.path %}active-sub{% endif %}" title="Abre em nova guia">
+                                    <i class="bi bi-globe me-2"></i> Portal de Vagas
                                 </a>
                             </li>
 
-                            {% if user.is_rh or user.is_superuser or user.is_diretoria %}
+                            {% if user.is_superuser or user.is_rh %}
                             <li class="nav-item">
-                                <a href="#" class="nav-link submenu-link">
+                                <a href="{% url 'gestao_vagas' %}" class="nav-link submenu-link {% if 'gestao' in request.path %}active-sub{% endif %}">
                                     <i class="bi bi-briefcase me-2"></i> Gestão de Vagas
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="{% url 'portal_vagas' %}" class="nav-link submenu-link">
-                                    <i class="bi bi-globe me-2"></i> Portal Externo
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="#" class="nav-link submenu-link">
-                                    <i class="bi bi-door-open me-2"></i> Pesquisa Demissional
+                                <a href="{% url 'painel_rh' %}" class="nav-link submenu-link {% if 'painel' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-funnel me-2"></i> Triagem (CVs)
                                 </a>
                             </li>
                             {% endif %}
+
+                            <li class="nav-item mt-3 mb-1 px-3 text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: var(--laranja-principal); font-weight: bold;">
+                                Requisições
+                            </li>
+
+                            <li class="nav-item">
+                                <a href="{% url 'solicitar_vaga' %}" class="nav-link submenu-link {% if 'solicitar' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-file-earmark-plus me-2"></i> Solicitar Vaga
+                                </a>
+                            </li>
+
+                            {% if user.is_superuser or user.is_rh %}
+                            <li class="nav-item">
+                                <a href="{% url 'listar_solicitacoes' %}" class="nav-link submenu-link {% if 'solicitacoes' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-inboxes me-2"></i> Aprovações
+                                </a>
+                            </li>
+                            {% endif %}
+
+                            {% if user.is_superuser or user.is_rh %}
+                            <li class="nav-item mt-3 mb-1 px-3 text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: var(--laranja-principal); font-weight: bold;">
+                                Retenção
+                            </li>
+
+                            <li class="nav-item">
+                                <a href="{% url 'listar_pesquisas' %}" class="nav-link submenu-link {% if 'pesquisa' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-clipboard-data me-2"></i> Pesquisa Demissional
+                                </a>
+                            </li>
+                            {% endif %}
+
                         </ul>
                     </div>
                 </li>
@@ -201,34 +231,36 @@
                        data-bs-toggle="collapse" href="#menuTI" role="button"
                        aria-expanded="{% if 'ti' in request.path %}true{% else %}false{% endif %}"
                        aria-controls="menuTI">
-                        <span><i class="bi bi-pc-display-horizontal me-2"></i> Tecnologia (TI)</span>
+                        <span><i class="bi bi-pc-display me-2"></i> Tecnologia (TI)</span>
                         <i class="bi bi-chevron-down transition-icon"></i>
                     </a>
                     <div class="collapse {% if 'ti' in request.path %}show{% endif %}" id="menuTI" data-bs-parent="#sidebarMenu">
                         <ul class="nav flex-column ms-3 ps-2 border-start border-secondary mb-2 mt-1">
-
                             <li class="nav-item">
-                                <a href="#" class="nav-link submenu-link">
+                                <a href="{% url 'novo_chamado' %}" class="nav-link submenu-link {% if 'ti/novo' in request.path %}active-sub{% endif %}">
                                     <i class="bi bi-headset me-2"></i> Abrir Chamado
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="#" class="nav-link submenu-link">
-                                    <i class="bi bi-ticket-detailed me-2"></i> Meus Chamados
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="#" class="nav-link submenu-link">
-                                    <i class="bi bi-graph-up me-2"></i> Dashboard
+                                <a href="{% url 'meus_chamados' %}" class="nav-link submenu-link {% if 'meus-chamados' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-person-lines-fill me-2"></i> Meus Chamados
                                 </a>
                             </li>
 
-                            {% if user.is_ti or user.is_superuser or user.is_diretoria %}
-                            <li class="nav-item mt-2">
-                                <a href="#" class="nav-link submenu-link">
-                                    <i class="bi bi-tools me-2"></i> Helpdesk Administrador
+                            {% if user.is_superuser or user.is_ti %}
+                            <li class="nav-item">
+                                <a href="{% url 'ti_admin' %}" class="nav-link submenu-link {% if 'mesa-de-trabalho' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-list-task me-2"></i> Helpdesk Administrador
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a href="{% url 'dashboard_ti' %}" class="nav-link submenu-link {% if 'dashboard' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-graph-up-arrow me-2"></i> Dashboard
+                                </a>
+                            </li>
+                            {% endif %}
+
+                            {% if user.is_superuser or user.is_ti %}
                             <li class="nav-item mt-3 mb-1 px-3 text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: var(--laranja-principal); font-weight: bold;">
                                 Governança
                             </li>
@@ -241,6 +273,7 @@
                         </ul>
                     </div>
                 </li>
+
                 {% if user.is_compras or user.is_diretoria or user.is_superuser or user.is_ti %}
                 <li class="nav-item mt-1">
                     <a class="nav-link {% if 'compras' not in request.path %}collapsed{% endif %} d-flex justify-content-between align-items-center"

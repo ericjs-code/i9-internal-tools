@@ -13,7 +13,7 @@ from .models import Chamado, ChamadoImagem
 
 
 
-@login_required(login_url='/admin/login/')
+@login_required(login_url='/login/')
 def novo_chamado(request):
     if request.method == 'POST':
         form = ChamadoForm(request.POST, request.FILES)
@@ -36,7 +36,7 @@ def novo_chamado(request):
     return render(request, 'ti/chamado_form.html', {'form': form})
 
 
-@login_required(login_url='/admin/login/')
+@login_required(login_url='/login/')
 def ti_admin(request):
     if not (request.user.is_superuser or getattr(request.user, 'is_ti', False) or getattr(request.user.is_diretoria, False)):
         messages.error(request, "Acesso restrito à equipe de Tecnologia.")
@@ -56,7 +56,7 @@ def ti_admin(request):
     return render(request, 'ti/ti_admin.html', context)
 
 
-@login_required(login_url='/admin/login/')
+@login_required(login_url='/login/')
 def dashboard_ti(request):
     if not (request.user.is_superuser or getattr(request.user, 'is_ti', False)):
         messages.error(request, "Acesso restrito à equipe de Tecnologia.")
@@ -124,7 +124,7 @@ def dashboard_ti(request):
     return render(request, 'ti/dashboard.html', context)
 
 
-@login_required(login_url='/admin/login/')
+@login_required(login_url='/login/')
 def atender_chamado(request, pk):
     if not (request.user.is_superuser or getattr(request.user, 'is_ti', False)):
         messages.error(request, "Acesso restrito à equipe de Tecnologia.")
@@ -156,13 +156,13 @@ def atender_chamado(request, pk):
     return render(request, 'ti/atender_chamado.html', {'chamado': chamado, 'form': form})
 
 
-@login_required(login_url='/admin/login/')
+@login_required(login_url='/login/')
 def meus_chamados(request):
     chamados = Chamado.objects.filter(solicitante=request.user).order_by('-data_abertura')
     return render(request, 'ti/meus_chamados.html', {'chamados': chamados})
 
 
-@login_required(login_url='/admin/login/')
+@login_required(login_url='/login/')
 def detalhe_meu_chamado(request, pk):
     chamado = get_object_or_404(Chamado, pk=pk, solicitante=request.user)
 
@@ -195,6 +195,8 @@ def gestao_usuarios(request):
     if not (request.user.is_superuser or getattr(request.user, 'is_ti', False) or getattr(request.user, 'is_diretoria', False)):
         messages.error(request, "Acesso restrito à TI.")
         return redirect('home')
+
+    # Traz os ativos primeiro, ordenados por nome
     usuarios = User.objects.all().order_by('-is_active', 'username')
     return render(request, 'ti/gestao_usuarios.html', {'usuarios': usuarios})
 
