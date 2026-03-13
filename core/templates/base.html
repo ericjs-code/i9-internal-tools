@@ -286,7 +286,7 @@
                     <div class="collapse {% if 'compras' in request.path %}show{% endif %}" id="menuCompras" data-bs-parent="#sidebarMenu">
                         <ul class="nav flex-column ms-3 ps-2 border-start border-secondary mb-2 mt-1">
                             <li class="nav-item">
-                                <a href="#" class="nav-link submenu-link">
+                                <a href="{% url 'dashboard_compras' %}" class="nav-link submenu-link {% if 'dashboard' in request.path %}active-sub{% endif %}">
                                     <i class="bi bi-box-seam me-2"></i> Dashboard Compras
                                 </a>
                             </li>

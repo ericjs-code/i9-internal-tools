@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard Compras - I9TMG{% endblock %}
+
+{% block content %}
+<style>
+    .kpi-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+    }
+    .kpi-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .kpi-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--azul-principal);
+    }
+    .chart-container {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        height: 350px;
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold" style="color: var(--azul-principal);">
+            <i class="bi bi-graph-up-arrow me-2"></i> Inteligência de Compras
+        </h3>
+        <button class="btn btn-sm btn-outline-secondary" onclick="window.location.reload();">
+            <i class="bi bi-arrow-clockwise me-1"></i> Atualizar Dados
+        </button>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-success">
+                <div class="kpi-title mb-1">Spend Total (Pedidos)</div>
+                <div class="kpi-value">R$ {{ spend_total|floatformat:2 }}</div>
+                <div class="small text-muted mt-2"><i class="bi bi-cash-coin me-1"></i>Volume financeiro efetivado</div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-primary">
+                <div class="kpi-title mb-1">SLA Interno (Lead Time)</div>
+                <div class="kpi-value">{{ lead_time_compras }} <span class="fs-6 text-muted fw-normal">dias</span></div>
+                <div class="small text-muted mt-2"><i class="bi bi-stopwatch me-1"></i>Tempo médio para emissão</div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-warning">
+                <div class="kpi-title mb-1">Backlog (Fila de Trabalho)</div>
+                <div class="kpi-value">{{ backlog_sc }} <span class="fs-6 text-muted fw-normal">SCs</span></div>
+                <div class="small text-muted mt-2"><i class="bi bi-inboxes me-1"></i>Solicitações sem pedido</div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-danger">
+                <div class="kpi-title mb-1">SLA Externo (Atrasos)</div>
+                <div class="kpi-value">{{ atraso_medio_fornecedores }} <span class="fs-6 text-muted fw-normal">dias</span></div>
+                <div class="small text-muted mt-2"><i class="bi bi-truck me-1"></i>Atraso médio nas entregas</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h6 class="fw-bold mb-3 text-secondary">Top 5 Projetos (Curva ABC - Custo)</h6>
+                <canvas id="graficoProjetos"></canvas>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h6 class="fw-bold mb-3 text-secondary">Top 5 Ofensores de Prazo (Fornecedores)</h6>
+                <canvas id="graficoFornecedores"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // Injeção dos dados do Backend (Django) para o Frontend (JavaScript)
+    const projetosLabels = {{ projetos_labels|safe }};
+    const projetosData = {{ projetos_data|safe }};
+    
+    const fornecedoresLabels = {{ fornecedores_labels|safe }};
+    const fornecedoresData = {{ fornecedores_data|safe }};
+
+    // Configuração de Cores Institucionais
+    const corPrincipal = '#141C3C';
+    const corSecundaria = '#FF742E';
+    const corAlerta = '#dc3545';
+
+    // Gráfico 1: Projetos (Barra Vertical)
+    const ctxProjetos = document.getElementById('graficoProjetos').getContext('2d');
+    new Chart(ctxProjetos, {
+        type: 'bar',
+        data: {
+            labels: projetosLabels,
+            datasets: [{
+                label: 'Custo Total (R$)',
+                data: projetosData,
+                backgroundColor: corPrincipal,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+
+    // Gráfico 2: Fornecedores Ofensores (Barra Horizontal)
+    const ctxFornecedores = document.getElementById('graficoFornecedores').getContext('2d');
+    new Chart(ctxFornecedores, {
+        type: 'bar',
+        data: {
+            labels: fornecedoresLabels,
+            datasets: [{
+                label: 'Média de Atraso (Dias)',
+                data: fornecedoresData,
+                backgroundColor: corAlerta,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y', // Inverte para barra horizontal
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: { beginAtZero: true }
+            }
+        }
+    });
+</script>
+{% endblock %}
