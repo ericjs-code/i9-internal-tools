@@ -11,7 +11,6 @@ def api_upload_compras(request):
     """
     if request.method == 'POST' and request.FILES.get('arquivo'):
 
-        # Chave de segurança para evitar acessos não autorizados
         token = request.headers.get('X-Api-Key')
         if token != 'I9TMG_CHAVE_SECRETA_2026':
             return JsonResponse({'erro': 'Acesso negado. Token inválido.'}, status=403)
@@ -19,16 +18,12 @@ def api_upload_compras(request):
         arquivo = request.FILES['arquivo']
 
         try:
-            # 1. Leitura do arquivo usando Pandas
             df = pd.read_excel(arquivo)
 
-            # 2. Limpeza da base antiga (Truncate para garantir dados sempre atualizados)
             DataWarehouseCompras.objects.all().delete()
 
-            # 3. Preparação dos dados
             registros = []
             for index, row in df.iterrows():
-                # Tratamento de nulos/NaNs do Pandas para o padrão do Django
                 def limpa_str(val): return str(val).strip() if pd.notna(val) else ''
 
                 def limpa_num(val): return float(val) if pd.notna(val) else 0.0
@@ -62,7 +57,6 @@ def api_upload_compras(request):
                     )
                 )
 
-            # 4. Inserção em massa (Bulk Create) - Operação de alta performance
             DataWarehouseCompras.objects.bulk_create(registros, batch_size=2000)
 
             return JsonResponse({'mensagem': f'Carga concluída: {len(registros)} registros sincronizados.'}, status=200)
