@@ -35,4 +35,5 @@ urlpatterns = [
     path('ti/', include('ti.urls')),
     path('rh/', include('rh.urls')),
     path('compras/', include('compras.urls')),
+    path('qualidade/', include('qualidade.urls'))
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

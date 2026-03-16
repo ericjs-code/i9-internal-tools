@@ -69,7 +69,7 @@ class UsuarioForm(forms.ModelForm):
         model = User
         fields = ['username', 'first_name', 'last_name', 'email', 'teams_username',
             'is_active', 'is_comercial', 'is_rh', 'is_ti', 'is_financeiro',
-            'is_engenharia', 'is_compras', 'is_pcp', 'is_diretoria']
+            'is_engenharia', 'is_compras', 'is_pcp', 'is_diretoria', 'is_qualidade']
 
     def save(self, commit=True):
         user = super().save(commit=False)

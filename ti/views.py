@@ -196,7 +196,6 @@ def gestao_usuarios(request):
         messages.error(request, "Acesso restrito à TI.")
         return redirect('home')
 
-    # Traz os ativos primeiro, ordenados por nome
     usuarios = User.objects.all().order_by('-is_active', 'username')
     return render(request, 'ti/gestao_usuarios.html', {'usuarios': usuarios})
 

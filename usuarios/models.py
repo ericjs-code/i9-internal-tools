@@ -12,6 +12,7 @@ class CustomUser(AbstractUser):
     is_diretoria = models.BooleanField(default=False, verbose_name="Acesso Diretoria (Total)")
     is_compras = models.BooleanField(default=False, verbose_name="Acesso Compras")
     is_pcp = models.BooleanField(default=False, verbose_name="Acesso PCP")
+    is_qualidade = models.BooleanField(default=False, verbose_name="Acesso Qualidade")
 
 
     def __str__(self):
@@ -28,5 +29,6 @@ class CustomUser(AbstractUser):
             'engenharia': self.is_engenharia,
             'compras': self.is_compras,
             'pcp': self.is_pcp,
+            'qualidade': self.is_qualidade,
         }
         return permissoes.get(modulo, False)
