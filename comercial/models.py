@@ -81,11 +81,11 @@ class STO(models.Model):
 
     informacoes_adicionais = models.TextField(blank=True, null=True, verbose_name="Informações Adicionais do Escopo")
 
-    risco_capacidade_financeira = models.BooleanField(default=True, verbose_name="Capacidade Financeira")
-    risco_fabril = models.BooleanField(default=True, verbose_name="Fabril e Capacidade de Produção")
-    risco_qualidade = models.BooleanField(default=True, verbose_name="Qualidade")
-    risco_requisitos_legais = models.BooleanField(default=True, verbose_name="Requisitos Legais e Estatutários")
-    risco_outros = models.CharField(max_length=200, blank=True, null=True, verbose_name="Outros Riscos, Qual?")
+    risco_capacidade_financeira = models.BooleanField(default=False, verbose_name="Capacidade Financeira")
+    risco_fabril = models.BooleanField(default=False, verbose_name="Fabril e Capacidade de Produção")
+    risco_qualidade = models.BooleanField(default=False, verbose_name="Qualidade")
+    risco_requisitos_legais = models.BooleanField(default=False, verbose_name="Requisitos Legais e Estatutários")
+    risco_outros = models.CharField(max_length=200, blank=False, null=True, verbose_name="Outros Riscos, Qual?")
 
     mkt_indicacao = models.BooleanField(default=False, verbose_name="Indicação")
     mkt_linkedin = models.BooleanField(default=False, verbose_name="LinkedIn")

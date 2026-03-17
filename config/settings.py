@@ -18,7 +18,6 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 mimetypes.add_type('text/css', '.css', True)
 
@@ -140,8 +139,10 @@ USE_THOUSAND_SEPARATOR = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -153,4 +154,9 @@ LOGOUT_REDIRECT_URL = 'login'
 
 
 
-
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.office365.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'backupti@i9tmg.com.br'
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
