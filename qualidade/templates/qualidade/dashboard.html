@@ -136,8 +136,28 @@
                 let novo_valor = cell.getValue();
                 let valor_antigo = cell.getOldValue();
 
-                let csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                // 1. Print no terminal do navegador para sabermos se o gatilho funcionou
+                console.log(`[SGQ] Tentando salvar RNC ${id_rnc} | Campo: ${campo_editado} | Valor: ${novo_valor}`);
 
+                // 2. Função infalível do Django para pegar o Token de Segurança
+                function getCookie(name) {
+                    let cookieValue = null;
+                    if (document.cookie && document.cookie !== '') {
+                        const cookies = document.cookie.split(';');
+                        for (let i = 0; i < cookies.length; i++) {
+                            const cookie = cookies[i].trim();
+                            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                                break;
+                            }
+                        }
+                    }
+                    return cookieValue;
+                }
+
+                let csrfToken = getCookie('csrftoken');
+
+                // 3. O Dardo Assíncrono com Tratamento Rigoroso de Erros
                 fetch(`/qualidade/api/rncs/${id_rnc}/atualizar/`, {
                     method: 'POST',
                     headers: {
@@ -149,22 +169,34 @@
                         valor: novo_valor
                     })
                 })
-                .then(response => response.json())
+                .then(async response => {
+                    // Se o servidor explodir um Erro 500, capturamos aqui antes de tentar ler o JSON
+                    if (!response.ok) {
+                        let errText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errText.substring(0, 100)}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if(data.status === 'sucesso'){
-                        cell.getElement().style.border = "2px solid #198754";
-                        setTimeout(() => { cell.getElement().style.border = ""; }, 1500);
+                        console.log("[SGQ] Sucesso! Banco de dados atualizado.");
+                        // Sucesso visual profissional: Transição suave de fundo verde
+                        cell.getElement().style.transition = "background-color 0.5s ease";
+                        cell.getElement().style.backgroundColor = "#d1e7dd";
+                        setTimeout(() => { cell.getElement().style.backgroundColor = ""; }, 1500);
                     } else {
+                        console.error("[SGQ] O Servidor recusou:", data.mensagem);
                         alert("Erro ao salvar: " + data.mensagem);
                         cell.restoreOldValue();
                     }
                 })
                 .catch(error => {
-                    alert("Erro de comunicação com o servidor.");
+                    console.error("[SGQ] Falha Crítica na Requisição:", error);
+                    alert("Falha de comunicação: " + error.message);
                     cell.restoreOldValue();
                 });
             }
-        }); // AGORA SIM, fechamos o Tabulator!
+        });
 
         // 4. Gatilho do Botão de Exportação Excel
         document.getElementById("download-xlsx").addEventListener("click", function(){
