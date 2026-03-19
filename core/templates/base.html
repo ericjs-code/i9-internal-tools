@@ -357,7 +357,6 @@
                     </div>
                 </li>
                 {% endif %}-->
-
                 {% if user.is_qualidade or user.is_diretoria or user.is_superuser or user.is_ti %}
                 <li class="nav-item mt-1">
                     <a class="nav-link {% if 'qualidade' not in request.path %}collapsed{% endif %} d-flex justify-content-between align-items-center"
