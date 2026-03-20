@@ -42,6 +42,16 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
 
+   // Função para exibir a data no padrão Brasileiro na tabela
+    var formatarDataBR = function(cell){
+        let val = cell.getValue();
+        if(val && val.includes('-')){
+            let parts = val.split('-');
+            return `${parts[2]}/${parts[1]}/${parts[0]}`; // Transforma 2026-03-19 em 19/03/2026
+        }
+        return val || "-";
+    };
+
     // Inicializa a tabela
     var table = new Tabulator("#tabela-rnc", {
         ajaxURL: "{% url 'api_listar_rncs' %}",
@@ -74,7 +84,7 @@
             {title: "Detector", field: "detector", width: 120, headerFilter: "list", headerFilterParams: {valuesLookup:true, clearable:true},
              editor: "list", editorParams: {values: ["Cliente", "Interno", "Auditor Interno", "Auditor Externo", "Fornecedor"]}},
 
-            {title: "Data Abertura", field: "data_abertura", width: 120, headerFilter: "input"},
+            {title: "Data Abertura", field: "data_abertura", width: 120, headerFilter: "input", "formatter": "formatarDataBR"},
             {title: "Projeto", field: "projeto_cod", width: 110, headerFilter: "input", editor: "input"},
 
             {title: "Elemento Rast.", field: "elemento_rastreador", width: 130, headerFilter: "input", editor: "input"},
@@ -90,15 +100,15 @@
 
             {title: "Justificativa Criticidade", field: "justificativa_criticidade", width: 250, formatter: "textarea", editor: "textarea"},
 
-            {title: "Tipo NC", field: "tipo_nc", width: 150, headerFilter: "input", editor: "input"},
+            {title: "Tipo NC", field: "tipo_nc", width: 150, headerFilter: "input"},
             {title: "Descrição da NC", field: "descricao", width: 300, formatter: "textarea", editor: "textarea"},
             {title: "Correção Imediata", field: "correcao", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Causas Principais", field: "causas_principais", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Ação Corretiva", field: "acao_corretiva", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Eficácia (Texto)", field: "eficacia_texto", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Responsáveis", field: "responsaveis", width: 200, headerFilter: "input"},
-            {title: "Prev. Conclusão", field: "data_prevista_conclusao", width: 130},
-            {title: "Encerramento", field: "data_encerramento", width: 130, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
+            {title: "Prev. Conclusão", field: "data_prevista_conclusao", width: 130, formatter: formatarDataBR},
+            {title: "Encerramento", field: "data_encerramento", width: 130, formatter: formatarDataBR, editor: "date"},
             {title: "Ishikawa", field: "ishikawa_link", width: 100, formatter: function(cell){
                 let url = cell.getValue();
                 if(url) return `<a href="${url}" target="_blank" class="text-primary text-decoration-none">Acessar</a>`;

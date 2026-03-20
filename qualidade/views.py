@@ -33,7 +33,7 @@ def api_listar_rncs(request):
         data.append({
             'id': rnc.id,
             'registrador': rnc.registrador.get_full_name() or rnc.registrador.username,
-            'data_abertura': rnc.data_abertura.strftime('%d/%m/%Y') if rnc.data_abertura else '',
+            'data_abertura': rnc.data_abertura.strftime('%Y/%m/%d') if rnc.data_abertura else '',
             'projeto_cod': rnc.projeto_cod or '-',
             'elemento_rastreador': rnc.elemento_rastreador or '-',
             'detector': rnc.get_detector_display(),
@@ -44,9 +44,8 @@ def api_listar_rncs(request):
             'local': rnc.local.nome if rnc.local else '-',
             'tipo_nc': rnc.tipo_nc.nome if rnc.tipo_nc else '-',
             'responsaveis': nomes_responsaveis,
-            'data_prevista_conclusao': rnc.data_prevista_conclusao.strftime(
-                '%d/%m/%Y') if rnc.data_prevista_conclusao else '',
-            'data_encerramento': rnc.data_encerramento.strftime('%d/%m/%Y') if rnc.data_encerramento else '',
+            'data_prevista_conclusao': rnc.data_prevista_conclusao.strftime('%Y/%m/%d') if rnc.data_prevista_conclusao else '',
+            'data_encerramento': rnc.data_encerramento.strftime('%Y/%m/%d') if rnc.data_encerramento else '',
             'justificativa_criticidade': rnc.justificativa_criticidade or '',
             'descricao': rnc.descricao or '',
             'correcao': rnc.correcao or '',
@@ -97,7 +96,7 @@ def api_atualizar_rnc(request, rnc_id):
         if campo not in campos_permitidos:
             return JsonResponse({'status': 'erro', 'mensagem': 'Edição deste campo não autorizada.'}, status=403)
 
-        # Se passou na segurança, delegamos a inteligência para o Service (Com a transação on_commit)
+        # Se passou na segurança, delegamos a inteligência para o Service
         RNCService.atualizar_rnc(rnc_id, campo, valor)
         return JsonResponse({'status': 'sucesso'})
 
