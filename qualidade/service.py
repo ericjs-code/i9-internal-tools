@@ -51,8 +51,8 @@ class RNCService:
         return rnc
 
     @staticmethod
-    def _notificar_data_encerramento(rnc):
-        rnc = RNC.objects.get(id=rnc.id)
+    def _notificar_data_encerramento(rnc_id):
+        rnc = RNC.objects.get(id=rnc_id)
         emails = [resp.email for resp in rnc.responsaveis.all() if resp.email]
         if emails:
             nome_equipamento = rnc.equipamento.nome if rnc.equipamento else "Não informado"
@@ -62,7 +62,7 @@ class RNCService:
                 f"Atenção, a data de encerramento da RNC foi atualizada.\n\n"
                 f"DETALHES DA RNC:\n"
                 f"- ID: {rnc.id}\n"
-                f"- Equipamento: {rnc.equipamento}\n"
+                f"- Equipamento: {nome_equipamento.equipamento}\n"
                 f"- Projeto: {codigo_projeto}\n"
                 f"- Descrição da Não Conformidade: {rnc.descricao}\n\n"
                 f"Nova Data de Encerramento: {rnc.data_encerramento.strftime('%d/%m/%Y') if rnc.data_encerramento else 'Não informado'}\n"
