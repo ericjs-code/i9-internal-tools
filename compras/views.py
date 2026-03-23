@@ -10,6 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Sum, Avg, Count, Q
 from .models import DataWarehouseCompras
+from django.db import transaction
 
 
 @csrf_exempt
@@ -234,3 +235,86 @@ def dashboard_compras(request):
     }
 
     return render(request, 'compras/dashboard.html', context)
+
+
+@login_required(login_url='/login/')
+def atualizar_dados_dw(request):
+    """
+    View acionada pelo botão do Dashboard.
+    Executa o script de ETL localmente e salva no banco de dados via ORM.
+    """
+    # Proteção de acesso
+    if not (request.user.is_superuser or getattr(request.user, 'is_compras', False) or getattr(request.user, 'is_ti',
+                                                                                               False)):
+        messages.error(request, "Você não tem permissão para atualizar a base de dados.")
+        return redirect('dashboard_compras')
+
+    try:
+        # Importa as funções do script e o caminho do Excel gerado
+        from compras.scripts.sync_protheus import baixar_dados_totvs, processar_dados, EXCEL_PATH
+
+        # Executa a extração (SFTP) e transformação
+        baixar_dados_totvs()
+        processar_dados()
+
+        # Lê o Excel que acabou de ser gerado
+        df = pd.read_excel(EXCEL_PATH)
+
+        registros = []
+        for index, row in df.iterrows():
+            def limpa_str(val):
+                return str(val).strip() if pd.notna(val) else ''
+
+            def limpa_num(val):
+                return float(val) if pd.notna(val) else 0.0
+
+            def limpa_int(val):
+                return int(val) if pd.notna(val) else 0
+
+            def limpa_data(val):
+                val_str = str(val).strip()
+                if val_str and val_str not in ['-', 'nan', 'NaT']:
+                    try:
+                        return datetime.strptime(val_str, '%d/%m/%Y').date()
+                    except ValueError:
+                        return None
+                return None
+
+            registros.append(
+                DataWarehouseCompras(
+                    filial=limpa_str(row.get('Filial')),
+                    num_sc=limpa_str(row.get('Num_SC')),
+                    cod_produto=limpa_str(row.get('Cod_Produto')),
+                    descricao=limpa_str(row.get('Descricao')),
+                    projeto_cod=limpa_str(row.get('Projeto_Cod')),
+                    tarefa_cod=limpa_str(row.get('Tarefa_Cod')),
+                    num_pedido=limpa_str(row.get('Num_Pedido')),
+                    cod_fornecedor=limpa_str(row.get('Cod_Fornecedor')),
+                    nome_fornecedor=limpa_str(row.get('Nome_Fornecedor')),
+                    status=limpa_str(row.get('Status')),
+                    emissao_sc=limpa_data(row.get('Emissao_SC')),
+                    emissao_pedido=limpa_data(row.get('Emissao_Pedido')),
+                    data_prev_recebimento_fisico=limpa_data(row.get('Data_Prev_Recebimento_Fisico')),
+                    data_recebimento_real=limpa_data(row.get('Data_Recebimento_Real')),
+                    qtd_solicitada=limpa_num(row.get('Qtd_Solicitada')),
+                    qtd_pedido=limpa_num(row.get('Qtd_Pedido')),
+                    qtd_recebida=limpa_num(row.get('Qtd_Recebida')),
+                    valor_unitario=limpa_num(row.get('Valor_Unitario')),
+                    valor_total=limpa_num(row.get('Valor_Total')),
+                    leadtime_compras=limpa_int(row.get('LeadTime_Compras')),
+                    leadtime_fornecedor=limpa_int(row.get('LeadTime_Fornecedor')),
+                    dias_atraso_entrega=limpa_int(row.get('Dias_Atraso_Entrega'))
+                )
+            )
+
+        # Injeção no Banco de Dados com Transação Atômica
+        with transaction.atomic():
+            DataWarehouseCompras.objects.all().delete()
+            DataWarehouseCompras.objects.bulk_create(registros, batch_size=2000)
+
+        messages.success(request, f"Base sincronizada com sucesso! {len(registros)} registros carregados do Protheus.")
+
+    except Exception as e:
+        messages.error(request, f"Falha na sincronização: {str(e)}")
+
+    return redirect('dashboard_compras')
