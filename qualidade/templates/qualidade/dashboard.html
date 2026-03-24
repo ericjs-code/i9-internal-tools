@@ -25,7 +25,12 @@
             </h3>
             <p class="text-muted small mb-0">Registros de Não Conformidades</p>
         </div>
+
         <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary shadow-sm border-0" data-bs-toggle="modal" data-bs-target="#modalNovaRNC">
+                <i class="bi bi-plus-lg me-2"></i>Nova RNC
+            </button>
+
             <button id="download-xlsx" class="btn btn-success shadow-sm border-0">
                 <i class="bi bi-file-earmark-excel me-2"></i>Exportar Planilha
             </button>
@@ -127,9 +132,9 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
 
-   // Função para exibir a data no padrão Brasileiro na tabela
+    // Função para exibir a data no padrão Brasileiro na tabela
     var formatarDataBR = function(cell){
         let val = cell.getValue();
         if(val && val.includes('-')){
@@ -150,9 +155,9 @@
         resizableColumns: true,
         movableColumns: true,
 
-
         columns: [
             {title: "ID", field: "id", width: 70, headerFilter: "input", frozen: false},
+
             {title: "Status", field: "status", width: 140, headerFilter: "list", headerFilterParams: {valuesLookup:true, clearable:true},
              editor: "list", editorParams: {values: ["Não iniciada", "Em andamento", "Concluído", "Fora dos trilhos", "Registro preliminar", "Cancelado"]},
              formatter: function(cell) {
@@ -171,7 +176,8 @@
             {title: "Detector", field: "detector", width: 120, headerFilter: "list", headerFilterParams: {valuesLookup:true, clearable:true},
              editor: "list", editorParams: {values: ["Cliente", "Interno", "Auditor Interno", "Auditor Externo", "Fornecedor"]}},
 
-            {title: "Data Abertura", field: "data_abertura", width: 120, headerFilter: "input", "formatter": "formatarDataBR"},
+            {title: "Data Abertura", field: "data_abertura", width: 120, headerFilter: "input", formatter: formatarDataBR},
+
             {title: "Projeto", field: "projeto_cod", width: 110, headerFilter: "input", editor: "input"},
 
             {title: "Elemento Rast.", field: "elemento_rastreador", width: 130, headerFilter: "input", editor: "input"},
@@ -188,29 +194,32 @@
             {title: "Justificativa Criticidade", field: "justificativa_criticidade", width: 250, formatter: "textarea", editor: "textarea"},
 
             {title: "Tipo NC", field: "tipo_nc", width: 150, headerFilter: "input"},
+
             {title: "Descrição da NC", field: "descricao", width: 300, formatter: "textarea", editor: "textarea"},
             {title: "Correção Imediata", field: "correcao", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Causas Principais", field: "causas_principais", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Ação Corretiva", field: "acao_corretiva", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Eficácia (Texto)", field: "eficacia_texto", width: 250, formatter: "textarea", editor: "textarea"},
+
             {title: "Responsáveis", field: "responsaveis", width: 200, headerFilter: "input"},
+
             {title: "Prev. Conclusão", field: "data_prevista_conclusao", width: 130, formatter: formatarDataBR},
-            {title: "Encerramento", field: "data_encerramento", width: 130, formatter: formatarDataBR, editor: "date"},
+            {title: "Encerramento", field: "data_encerramento", width: 130, formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
+
             {title: "Ishikawa", field: "ishikawa_link", width: 100, formatter: function(cell){
                 let url = cell.getValue();
                 if(url) return `<a href="${url}" target="_blank" class="text-primary text-decoration-none">Acessar</a>`;
                 return "-";
             }},
             {title: "Eficácia PDF", field: "eficacia_pdf", width: 110, formatter: function(cell){
-                let url = cell.getValue(); // Pega o caminho do PDF do banco
+                let url = cell.getValue();
                 if(url) return `<a href="${url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" style="font-size: 0.75rem;"><i class="bi bi-file-pdf"></i> PDF</a>`;
                 return "-";
             }},
 
             {title: "Imagens", field: "qtd_imagens", width: 90, formatter: function(cell){
-                let qtd = cell.getValue(); // Verifica quantas imagens existem
+                let qtd = cell.getValue();
                 if(qtd > 0) {
-                    // Puxa o dado oculto da primeira imagem para gerar o link do botão
                     let url = cell.getRow().getData().primeira_imagem_url;
                     return `<a href="${url}" target="_blank" class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.75rem;"><i class="bi bi-image"></i> (${qtd})</a>`;
                 }
@@ -223,15 +232,12 @@
         }
     });
 
-
+    // Gatilho de Edição Inline do Tabulator
     table.on("cellEdited", function(cell){
         let id_rnc = cell.getRow().getData().id;
         let campo_editado = cell.getField();
         let novo_valor = cell.getValue();
 
-        console.log(`GATILHO DISPARADO!\nTentando salvar RNC: ${id_rnc}\nCampo: ${campo_editado}\nNovo Valor: ${novo_valor}`);
-
-        // Captura o token de segurança diretamente do HTML
         let csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
         if(!csrfInput) {
             console.log("ERRO CRÍTICO: Token CSRF não encontrado no HTML!");
@@ -239,7 +245,6 @@
         }
         let csrfToken = csrfInput.value;
 
-        // Dispara para o backend
         fetch(`/qualidade/api/rncs/${id_rnc}/atualizar/`, {
             method: 'POST',
             headers: {
@@ -254,7 +259,6 @@
         .then(response => response.json())
         .then(data => {
             if(data.status === 'sucesso'){
-                console.log("SUCESSO! O Banco de Dados confirmou a gravação.");
                 cell.getElement().style.backgroundColor = "#d1e7dd";
             } else {
                 alert("O SERVIDOR RECUSOU: " + data.mensagem);
@@ -272,22 +276,19 @@
         table.download("xlsx", "Controle_RNCs_I9TMG.xlsx", {sheetName:"RNCs"});
     });
 
-    // Interceptação do submit
     document.getElementById("formNovaRNC").addEventListener("submit", function(event){
-
-        // 1. Impede o recarregamento da página
+        // 1. Impede a página de recarregar
         event.preventDefault();
 
-        // 2. Captura os dados do formulário
+        // 2. Coleta os dados do formulário
         let formData = new FormData(this);
 
-        // 3. Converte para objeto JSON limpo
+        // 3. Converte para um objeto JSON
         let payload = Object.fromEntries(formData.entries());
 
-        // 4. Imprime no console (COM ASPAS CORRETAS)
+        // 4. Imprime no console do navegador para testarmos!
         console.log("DADOS PRONTOS PARA O BACKEND:", payload);
-
-    }); // FECHAMENTO CORRETO DO EVENT LISTENER DO FORMULÁRIO
+    });
 
 });
 </script>
