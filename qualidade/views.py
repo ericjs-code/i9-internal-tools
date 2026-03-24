@@ -103,6 +103,7 @@ def api_atualizar_rnc(request, rnc_id):
             'eficacia_pdf',
             'responsaveis',
             'data_encerramento',
+            'data_previsao_conclusao',
             'versao',
         ]
 
@@ -166,34 +167,44 @@ def api_editar_rnc_avancado(request, rnc_id):
 
         data_antiga = rnc.data_encerramento
 
-        nova_data_texto = request.POST.get('data_encerramento')
-        if nova_data_texto:
-            rnc.data_encerramento = datetime.strptime(nova_data_texto, '%Y-%m-%d').date()
-
         data_encerramento = request.POST.get('data_encerramento')
         if data_encerramento:
-            rnc.data_encerramento = data_encerramento
+            rnc.data_encerramento = datetime.strptime(data_encerramento, '%Y-%m-%d').date()
+        elif data_encerramento == "":
+            rnc.data_encerramento = None
 
+        data_prevista = request.POST.get('data_prevista')
+        if data_prevista:
+            rnc.data_prevista_conclusao = datetime.strptime(data_prevista, '%Y-%m-%d').date()
+        elif data_prevista == "":
+            rnc.data_prevista_conclusao = None
+
+        # 3. Tratamento do Ishikawa
         ishikawa_link = request.POST.get('ishikawa_link')
         if ishikawa_link is not None:
             rnc.ishikawa_link = ishikawa_link
 
+        # 4. Tratamento dos Responsáveis
         responsaveis_ids = request.POST.getlist('responsaveis')
         if responsaveis_ids:
             rnc.responsaveis.set(responsaveis_ids)
         else:
             rnc.responsaveis.clear()
 
+        # 5. Tratamento do PDF
         if 'eficacia_pdf' in request.FILES:
             rnc.eficacia_pdf = request.FILES['eficacia_pdf']
 
+        # Salva o registo principal
         rnc.save()
 
+        # 6. Tratamento das Imagens Adicionais
         imagens = request.FILES.getlist('imagens')
         for img in imagens:
             RNCImagem.objects.create(rnc=rnc, imagem=img)
 
-        if rnc.data_encerramento != data_antiga:
+        # 7. Gatilho do E-mail (Só dispara se a data de encerramento mudou E não for vazia)
+        if rnc.data_encerramento and rnc.data_encerramento != data_antiga:
             RNCService._notificar_data_encerramento(rnc.id)
 
         return JsonResponse({'status': 'sucesso'})

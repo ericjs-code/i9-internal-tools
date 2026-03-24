@@ -151,6 +151,11 @@
                         </div>
 
                         <div class="col-md-6">
+                            <label class="form-label fw-bold small text-primary">Data Finalização Prevista</label>
+                            <input type="date" id="edit_data_prevista" name="data_prevista" class="form-control shadow-sm">
+                        </div>
+
+                        <div class="col-md-6">
                             <label class="form-label fw-bold small text-primary">Diagrama de Ishikawa (Link URL)</label>
                             <input type="url" id="edit_ishikawa_link" name="ishikawa_link" class="form-control shadow-sm" placeholder="https://...">
                         </div>
@@ -261,7 +266,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {title: "Ação Corretiva", field: "acao_corretiva", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Eficácia (Texto)", field: "eficacia_texto", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Responsáveis", field: "responsaveis", width: 200, headerFilter: "input"},
-            {title: "Prev. Conclusão", field: "data_prevista_conclusao", width: 130, formatter: formatarDataBR},
+            {title: "Prev. Conclusão", field: "data_prevista_conclusao", width: 130, formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
             {title: "Encerramento", field: "data_encerramento", width: 130, formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
 
             {title: "Ishikawa", field: "ishikawa_link", width: 100, formatter: function(cell){
@@ -390,7 +395,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('display_rnc_id').innerText = dados.id;
         document.getElementById('edit_rnc_id').value = dados.id;
 
-        document.getElementById('edit_data_encerramento').value = dados.data_encerramento || '';
+        document.getElementById('edit_data_encerramento').value = dados.data_encerramento ? dados.data_encerramento.replaceAll('/', '-') : '';
+        document.getElementById('edit_data_prevista').value = dados.data_prevista_conclusao ? dados.data_prevista_conclusao.replaceAll('/', '-') : '';
         document.getElementById('edit_ishikawa_link').value = dados.ishikawa_link || '';
 
         let selectResp = document.getElementById('edit_responsaveis');
