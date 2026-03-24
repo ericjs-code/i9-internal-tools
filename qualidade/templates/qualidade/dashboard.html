@@ -39,6 +39,93 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalNovaRNC" tabindex="-1" aria-labelledby="modalNovaRNCLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modalNovaRNCLabel"><i class="bi bi-plus-circle me-2"></i>Novo Registo Preliminar de NC</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form id="formNovaRNC">
+                <div class="modal-body bg-light">
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">Local/Setor *</label>
+                            <select name="local_id" class="form-select shadow-sm" required>
+                                <option value="">Selecione...</option>
+                                {% for local in locais %}
+                                    <option value="{{ local.id }}">{{ local.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">Tipo de NC *</label>
+                            <select name="tipo_nc_id" class="form-select shadow-sm" required>
+                                <option value="">Selecione...</option>
+                                {% for tipo in tipos_nc %}
+                                    <option value="{{ tipo.id }}">{{ tipo.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">Equipamento (Opcional)</label>
+                            <select name="equipamento_id" class="form-select shadow-sm">
+                                <option value="">Nenhum / Não se aplica</option>
+                                {% for eqp in equipamentos %}
+                                    <option value="{{ eqp.id }}">{{ eqp.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">Detector *</label>
+                            <select name="detector" class="form-select shadow-sm" required>
+                                <option value="">Selecione...</option>
+                                <option value="Cliente">Cliente</option>
+                                <option value="Interno">Interno</option>
+                                <option value="Auditor Interno">Auditor Interno</option>
+                                <option value="Auditor Externo">Auditor Externo</option>
+                                <option value="Fornecedor">Fornecedor</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">Classificação *</label>
+                            <select name="classificacao" class="form-select shadow-sm" required>
+                                <option value="">Selecione...</option>
+                                <option value="Sistema">Sistema</option>
+                                <option value="Produto">Produto</option>
+                                <option value="Processo">Processo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">Criticidade *</label>
+                            <select name="criticidade" class="form-select shadow-sm" required>
+                                <option value="">Selecione...</option>
+                                <option value="Alto">Alto</option>
+                                <option value="Médio">Médio</option>
+                                <option value="Baixo">Baixo</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold small">Descrição da Não Conformidade *</label>
+                            <textarea name="descricao" class="form-control shadow-sm" rows="4" required placeholder="Descreva o problema de forma clara e objetiva..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnSalvarNovaRNC">
+                        <i class="bi bi-save me-1"></i> Criar Registo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
 
@@ -185,5 +272,15 @@
         table.download("xlsx", "Controle_RNCs_I9TMG.xlsx", {sheetName:"RNCs"});
     });
 });
+
+    //Interceptação do submit
+    document.getElementById("formNovaRNC").addEventListener("submit", function(event){
+        event.preventDefault();
+        let formData = new FormData(this);
+        let payload = Object.fromEntries(formData.entries());
+        console.log(DADOS PRONTOS PARA O BACEND: payload);
+
+
+
 </script>
 {% endblock %}
