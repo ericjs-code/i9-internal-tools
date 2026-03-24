@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById("formEditarRNC").addEventListener("submit", function(event){
         event.preventDefault();
 
-        let formData = new FormData(this); // Captura TUDO, incluindo Ficheiros!
+        let formData = new FormData(this);
         let rnc_id = document.getElementById('edit_rnc_id').value;
         let csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
@@ -429,15 +429,11 @@ document.addEventListener('DOMContentLoaded', function() {
         btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Salvando...';
         btnSalvar.disabled = true;
 
-        // Montar a URL dinamicamente com o ID da RNC
         let url = `/qualidade/api/rncs/${rnc_id}/editar-avancado/`;
 
         fetch(url, {
             method: 'POST',
-            // ATENÇÃO: NÃO colocamos o 'Content-Type' aqui. O navegador faz isso sozinho com o FormData!
-            headers: {
-                'X-CSRFToken': csrfToken
-            },
+            headers: { 'X-CSRFToken': csrfToken },
             body: formData
         })
         .then(response => response.json())
@@ -447,7 +443,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 var modalInstance = bootstrap.Modal.getInstance(modalEl);
                 modalInstance.hide();
                 document.getElementById('formEditarRNC').reset();
-                table.setData(); // Atualiza a tabela!
+
+                // AGORA ELE VAI ACHAR A TABELA!
+                table.setData();
             } else {
                 alert("O SERVIDOR RECUSOU A EDIÇÃO:\n" + data.mensagem);
             }
@@ -461,6 +459,6 @@ document.addEventListener('DOMContentLoaded', function() {
             btnSalvar.disabled = false;
         });
     });
-
+});
 </script>
 {% endblock %}
