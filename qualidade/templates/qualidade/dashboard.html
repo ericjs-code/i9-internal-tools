@@ -255,6 +255,22 @@ document.addEventListener('DOMContentLoaded', function() {
         return val || "-";
     };
 
+    var filtroMultiploTexto = function(headerValue, rowValue, rowData, filterParams) {
+        if (!headerValue) return true;
+        if (!rowValue) return false;
+        let termos = headerValue.split(',').map(t => t.trim().toLowerCase()).filter(t => t !== "");
+        let valorCelula = String(rowValue).toLowerCase();
+        return termos.some(termo => valorCelula.includes(termo));
+    };
+
+    var filtroMultiploExato = function(headerValue, rowValue, rowData, filterParams) {
+        if (!headerValue) return true;
+        if (!rowValue) return false;
+        let termos = headerValue.split(',').map(t => t.trim().toLowerCase()).filter(t => t !== "");
+        let valorCelula = String(rowValue).toLowerCase();
+        return termos.some(termo => valorCelula === termo);
+    };
+
     var table = new Tabulator("#tabela-rnc", {
         ajaxURL: "{% url 'api_listar_rncs' %}",
         layout: "fitColumns",
@@ -275,9 +291,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 abrirModalEdicao(dadosDaLinha);
             }},
 
-            {title: "ID", field: "id", width: 70, headerFilter: "input", frozen: false},
-
-            {title: "Status", field: "status", width: 140, headerFilter: "list", headerFilterParams: {valuesLookup:true, clearable:true},
+            {title: "ID", field: "id", width: 70, headerFilter: "input", headerFilterFunc: filtroMultiploExato, frozen: false},
+            {title: "Status", field: "status", width: 140,
+             headerFilter: "list",
+             headerFilterFunc: "in",
+             headerFilterParams: {valuesLookup:true, clearable:true, multiselect:true}, // <-- NOVO: multiselect:true
              editor: "list", editorParams: {values: ["Não iniciada", "Em andamento", "Concluído", "Fora dos trilhos", "Registro preliminar", "Cancelado"]},
              formatter: function(cell) {
                  let val = cell.getValue();
@@ -290,18 +308,44 @@ document.addEventListener('DOMContentLoaded', function() {
              }
             },
 
-            {title: "Registrador", field: "registrador", width: 150, headerFilter: "input"},
-            {title: "Detector", field: "detector", width: 120, headerFilter: "list", headerFilterParams: {valuesLookup:true, clearable:true},
+            {title: "Registrador", field: "registrador", width: 150, headerFilter: "input", headerFilterFunc: filtroMultiploTexto},
+            {title: "Detector", field: "detector", width: 120,
+             headerFilter: "list",
+             headerFilterFunc: "in",
+             headerFilterParams: {valuesLookup:true, clearable:true, multiselect:true},
              editor: "list", editorParams: {values: ["Cliente", "Interno", "Auditor Interno", "Auditor Externo", "Fornecedor"]}},
-            {title: "Data Abertura", field: "data_abertura", width: 120, headerFilter: "input", formatter: formatarDataBR},
-            {title: "Projeto", field: "projeto_cod", width: 110, headerFilter: "input", editor: "input"},
+            {title: "Data Abertura", field: "data_abertura", width: 120, headerFilter: "input", headerFilterFunc: filtroMultiploTexto, formatter: formatarDataBR},
+            {title: "Projeto", field: "projeto_cod", width: 110,
+             headerFilter: "input", editor: "input",
+             headerFilterFunc: function(headerValue, rowValue, rowData, filterParams) {
+                 // Se o filtro estiver vazio, mostra todas as linhas
+                 if (!headerValue) return true;
+                 // Se a célula estiver vazia mas há filtro, esconde a linha
+                 if (!rowValue) return false;
+
+                 // Pega o que o utilizador digitou, separa por vírgula, e converte para minúsculas
+                 let termos = headerValue.split(',').map(termo => termo.trim().toLowerCase()).filter(termo => termo !== "");
+
+                 // Pega o valor da célula (banco de dados) e converte para minúsculas
+                 let valorCelula = String(rowValue).toLowerCase();
+
+                 // Retorna TRUE se a célula contiver ALGUM (some) dos termos digitados (Lógica OR)
+                 return termos.some(termo => valorCelula.includes(termo));
+             }
+            },
             {title: "Elemento Rastreador", field: "elemento_rastreador", width: 130, headerFilter: "input", editor: "input"},
-            {title: "Local", field: "local", width: 130, headerFilter: "input"},
-            {title: "Equipamento", field: "equipamento", width: 160, headerFilter: "input"},
-            {title: "Classificação", field: "classificacao", width: 130, headerFilter: "list", headerFilterParams: {valuesLookup:true, clearable:true},
-             editor: "list", editorParams: {values: ["Sistema", "Produto", "Processo"]}},
-            {title: "Criticidade", field: "criticidade", width: 110, headerFilter: "list", headerFilterParams: {valuesLookup:true, clearable:true},
-             editor: "list", editorParams: {values: ["Alto", "Médio", "Baixo"]}},
+            {title: "Local", field: "local", width: 130, headerFilter: "input", headerFilterFunc: filtroMultiploTexto},
+            {title: "Equipamento", field: "equipamento", width: 160, headerFilter: "input", headerFilterFunc: filtroMultiploTexto},
+            {title: "Classificação", field: "classificacao", width: 130,
+            headerFilter: "list",
+            headerFilterFunc: "in",
+            headerFilterParams: {valuesLookup:true, clearable:true, multiselect:true},
+            editor: "list", editorParams: {values: ["Sistema", "Produto", "Processo"]}},
+            {title: "Criticidade", field: "criticidade", width: 110,
+            headerFilter: "list",
+            headerFilterFunc: "in",
+            headerFilterParams: {valuesLookup:true, clearable:true, multiselect:true},
+            editor: "list", editorParams: {values: ["Alto", "Médio", "Baixo"]}},
             {title: "Justificativa Criticidade", field: "justificativa_criticidade", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Tipo NC", field: "tipo_nc", width: 150, headerFilter: "input"},
             {title: "Descrição da NC", field: "descricao", width: 300, formatter: "textarea", editor: "textarea"},
@@ -309,7 +353,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {title: "Causas Principais", field: "causas_principais", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Ação Corretiva", field: "acao_corretiva", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Eficácia (Texto)", field: "eficacia_texto", width: 250, formatter: "textarea", editor: "textarea"},
-            {title: "Responsáveis", field: "responsaveis", width: 200, headerFilter: "input"},
+            {title: "Responsáveis", field: "responsaveis", width: 200, headerFilter: "input", headerFilterFunc: filtroMultiploTexto},
             {title: "Data Previsão de Conclusão", field: "data_prevista_conclusao", width: 130, formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
             {title: "Data de Encerramento", field: "data_encerramento", width: 130, formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
 
