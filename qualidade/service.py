@@ -60,6 +60,7 @@ class RNCService:
 
             mensagem_texto = (
                 f"Atenção, a data de encerramento da RNC foi atualizada.\n\n"
+                f"Clique aqui para acessar: https://inovetmg.pythonanywhere.com/login/ "
                 f"DETALHES DA RNC:\n"
                 f"- ID: {rnc.id}\n"
                 f"- Equipamento: {nome_equipamento}\n"

@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
-from .models import RNC, Local, Equipamento, TipoNC, RNCImagem
+from .models import RNC, Local, Equipamento, TipoNC, RNCImagem, RNCEficaciaImagem
 from .service import RNCService
 
 User = get_user_model()
@@ -35,13 +35,14 @@ def api_listar_rncs(request):
     rncs = RNC.objects.select_related(
         'registrador', 'equipamento', 'local', 'tipo_nc'
     ).prefetch_related(
-        'responsaveis', 'imagens'
+        'responsaveis', 'imagens', 'eficacia_imagens'
     ).all().order_by('-id')
 
     data = []
     for rnc in rncs:
         nomes_responsaveis = ", ".join([resp.get_full_name() or resp.username for resp in rnc.responsaveis.all()])
         imagens_urls = [img.imagem.url for img in rnc.imagens.all() if img.imagem]
+        imagens_eficacia_urls = [img.imagens_eficacia.url for img in rnc.eficacia_imagens.all() if img.imagens_eficacia]
 
         data.append({
             'id': rnc.id,
@@ -70,7 +71,10 @@ def api_listar_rncs(request):
             'eficacia_pdf': rnc.eficacia_pdf.url if rnc.eficacia_pdf else '',
             'qtd_imagens': len(imagens_urls),
             'primeira_imagem_url': imagens_urls[0] if imagens_urls else '',
-            'imagens_urls': imagens_urls
+            'imagens_urls': imagens_urls,
+            'eficacia_imagens_urls': imagens_eficacia_urls,
+            'qtd_imagens_eficacia': len(imagens_eficacia_urls),
+            'primeira_imagem_eficacia_url': imagens_eficacia_urls[0] if imagens_eficacia_urls else ''
         })
 
     return JsonResponse(data, safe=False)
@@ -203,6 +207,10 @@ def api_editar_rnc_avancado(request, rnc_id):
         imagens = request.FILES.getlist('imagens')
         for img in imagens:
             RNCImagem.objects.create(rnc=rnc, imagem=img)
+
+        imagens_eficacia = request.FILES.getlist('imagens_eficacia')
+        for img in imagens_eficacia:
+            RNCEficaciaImagem.objects.create(rnc=rnc, imagens_eficacia=img)
 
         # 7. Gatilho do E-mail (Só dispara se a data de encerramento mudou E não for vazia)
         if rnc.data_encerramento and rnc.data_encerramento != data_antiga:

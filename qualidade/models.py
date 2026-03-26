@@ -126,5 +126,14 @@ class RNCImagem(models.Model):
         verbose_name = 'Imagem da RNC'
         verbose_name_plural = 'Imagens da RNC'
 
+class RNCEficaciaImagem(models.Model):
+    rnc = models.ForeignKey(RNC, on_delete=models.CASCADE, related_name='eficacia_imagens')
+    imagens_eficacia = models.ImageField('Anexo de Imagem Eficacia', upload_to='qualidade/rnc/eficacia')
+    enviado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Imagem Eficacia da RNC'
+        verbose_name_plural = 'Imagens da Eficacia das RNCs'
+
     def __str__(self):
         return f"Anexo da RNC #{self.rnc.id}"
