@@ -200,7 +200,7 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label fw-bold small text-success"><i class="bi bi-images"></i> Anexar Imagens</label>
+                            <label class="form-label fw-bold small text-success"><i class="bi bi-images"></i> Anexar Imagens NC</label>
                             <input type="file" id="edit_imagens" name="imagens" class="form-control shadow-sm" accept="image/*" multiple>
                         </div>
 
@@ -347,7 +347,9 @@ document.addEventListener('DOMContentLoaded', function() {
             headerFilterParams: {valuesLookup:true, clearable:true, multiselect:true},
             editor: "list", editorParams: {values: ["Alto", "Médio", "Baixo"]}},
             {title: "Justificativa Criticidade", field: "justificativa_criticidade", width: 250, formatter: "textarea", editor: "textarea"},
-            {title: "Tipo NC", field: "tipo_nc", width: 150, headerFilter: "input"},
+            {title: "Tipo NC", field: "tipo_nc", width: 150, 
+            headerFilter: "input",
+            headerFilterFunc: filtroMultiploTexto},
             {title: "Descrição da NC", field: "descricao", width: 300, formatter: "textarea", editor: "textarea"},
             {title: "Correção Imediata", field: "correcao", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Causas Principais", field: "causas_principais", width: 250, formatter: "textarea", editor: "textarea"},
@@ -362,12 +364,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if(url) return `<a href="${url}" target="_blank" class="text-primary text-decoration-none">Acessar</a>`;
                 return "-";
             }},
-            {title: "Eficácia PDF", field: "eficacia_pdf", width: 110, formatter: function(cell){
+            {title: "Evidência Eficácia PDF", field: "eficacia_pdf", width: 110, formatter: function(cell){
                 let url = cell.getValue();
                 if(url) return `<a href="${url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" style="font-size: 0.75rem;"><i class="bi bi-file-pdf"></i> PDF</a>`;
                 return "-";
             }},
-            {title: "Eficácia (Img)", field: "qtd_imagens_eficacia", width: 105, hozAlign: "center", formatter: function(cell){
+            {title: "Evidência Eficácia (Img)", field: "qtd_imagens_eficacia", width: 105, hozAlign: "center", formatter: function(cell){
                 let qtd = cell.getValue();
                 if(qtd > 0) {
                     return `<button type="button" class="btn btn-sm btn-outline-success py-0" style="font-size: 0.75rem;">
@@ -382,7 +384,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }},
 
-            {title: "Imagens", field: "qtd_imagens", width: 90, hozAlign: "center", formatter: function(cell){
+            {title: "Imagem NC", field: "qtd_imagens", width: 90, hozAlign: "center", formatter: function(cell){
                 let qtd = cell.getValue();
                 if(qtd > 0) {
                     return `<button type="button" class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.75rem;">
