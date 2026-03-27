@@ -346,6 +346,20 @@ document.addEventListener('DOMContentLoaded', function() {
             headerFilterFunc: "in",
             headerFilterParams: {valuesLookup:true, clearable:true, multiselect:true},
             editor: "list", editorParams: {values: ["Alto", "Médio", "Baixo"]}},
+            {title: "Imagem NC", field: "qtd_imagens", width: 90, hozAlign: "center", formatter: function(cell){
+                let qtd = cell.getValue();
+                if(qtd > 0) {
+                    return `<button type="button" class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.75rem;">
+                                <i class="bi bi-image"></i> (${qtd})
+                            </button>`;
+                }
+                return "-";
+            }, cellClick: function(e, cell){
+                let dados = cell.getRow().getData();
+                if(dados.qtd_imagens > 0){
+                    abrirGaleriaImagens(dados, 'padrao'); // <-- Passa 'padrao'
+                }
+            }},
             {title: "Justificativa Criticidade", field: "justificativa_criticidade", width: 250, formatter: "textarea", editor: "textarea"},
             {title: "Tipo NC", field: "tipo_nc", width: 150, 
             headerFilter: "input",
