@@ -40,6 +40,10 @@ class RNCService:
             if campo == 'criticidade' and valor in mapa_criticidade:
                 valor = mapa_criticidade[valor]
 
+            mapa_origem = {'Comercial': 'CO', 'Projeto_Engenharia': 'PE', 'Fabricação': 'FA', 'Montagem_comissionamento': 'MC', 'Suprimentos': 'SU', 'RH': 'RH', 'Fornecedor': 'FO', 'Processo_interno_SGQ': 'SG'}
+            if campo =='origem' and valor in mapa_origem:
+                valor = mapa_origem[valor]
+
             setattr(rnc, campo, valor)
             rnc.versao += 1
             rnc.save(update_fields=[campo, 'versao', 'atualizado_em'])
@@ -51,14 +55,15 @@ class RNCService:
         return rnc
 
     @staticmethod
-    def _notificar_data_encerramento(rnc_id):
+    def _notificar_data_encerramento(rnc_id, usuario_id):
         rnc = RNC.objects.get(id=rnc_id)
         emails = [resp.email for resp in rnc.responsaveis.all() if resp.email]
+
         if emails:
             nome_equipamento = rnc.equipamento.nome if rnc.equipamento else "Não informado"
             codigo_projeto = rnc.projeto_cod if rnc.projeto_cod else "Não informado"
 
-            mensagem_texto = (
+            email_altera_data = (
                 f"Atenção, a data de encerramento da RNC foi atualizada.\n\n"
                 f"Clique aqui para acessar: https://inovetmg.pythonanywhere.com/login/ "
                 f"DETALHES DA RNC:\n"
@@ -68,10 +73,11 @@ class RNCService:
                 f"- Descrição da Não Conformidade: {rnc.descricao}\n\n"
                 f"Nova Data de Encerramento: {rnc.data_encerramento.strftime('%d/%m/%Y') if rnc.data_encerramento else 'Não informado'}\n"
             )
+
             try:
                 send_mail(
                     subject=f'[SGQ] Alteração de Prazo - RNC #{rnc.id}',
-                    message=mensagem_texto,
+                    message=email_altera_data,
                     from_email=settings.EMAIL_HOST_USER,
                     recipient_list=emails,
                     fail_silently=False

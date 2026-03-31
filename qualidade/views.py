@@ -50,6 +50,7 @@ def api_listar_rncs(request):
             'elemento_rastreador': rnc.elemento_rastreador or '-',
             'detector': rnc.get_detector_display(),
             'categoria': rnc.get_categoria_display(),
+            'origem': rnc.get_origem_display(),
             'criticidade': rnc.get_criticidade_display(),
             'status': rnc.get_status_display(),
             'equipamento': rnc.equipamento.nome if rnc.equipamento else 'N/A',
@@ -89,6 +90,7 @@ def api_atualizar_rnc(request, rnc_id):
             'elemento_rastreador',
             'detector',
             'categoria',
+            'origem',
             'criticidade',
             'status',
             'equipamento',
@@ -138,6 +140,7 @@ def api_criar_rnc(request):
         mapa_categoria = {'Comercial': 'CO', 'Engenharia': 'EN', 'PCP': 'PC', 'Fabricação': 'FA', 'Montagem': 'MO', 'Suprimentos': 'SU', 'Fornecedor': 'FO', 'Expedição': 'EX', 'Qualidade': 'QU', 'Recursos Humanos': 'RH', 'Financeiro': 'FI', 'SGQ': 'SG'}
         mapa_criticidade = {'Alto': 'A', 'Médio': 'M', 'Baixo': 'B'}
         mapa_detector = {'Cliente': 'CL', 'Interno': 'IN', 'Auditor Interno': 'AI', 'Auditor Externo': 'AE', 'Fornecedor': 'FO'}
+        mapa_origem = {'Comercial': 'CO', 'Projeto_Engenharia': 'PE', 'Fabricação': 'FA', 'Montagem_comissionamento': 'MC', 'Suprimentos': 'SU', 'RH': 'RH', 'Fornecedor': 'FO', 'Processo_interno_SGQ': 'SG'}
 
         nova_rnc = RNC.objects.create(
             registrador=request.user,
@@ -145,6 +148,7 @@ def api_criar_rnc(request):
             equipamento=equipamento,
             detector=mapa_detector.get(dados.get('detector')),
             categoria=mapa_categoria.get(dados.get('categoria')),
+            origem=mapa_origem.get(dados.get('origem')),
             criticidade=mapa_criticidade.get(dados.get('criticidade')),
             descricao=dados.get('descricao'),
             status = 'PR'

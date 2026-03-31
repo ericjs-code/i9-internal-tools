@@ -18,8 +18,7 @@
     .tabulator-row:hover { background-color: #f1f3f5 !important; }
 
 
-    /* DESTAQUE PARA CABEÇALHOS EDITÁVEIS (INLINE)       */
-
+    /* DESTAQUE PARA CABEÇALHOS EDITÁVEIS (INLINE)*/
     .tabulator-header .tabulator-col[tabulator-field="status"],
     .tabulator-header .tabulator-col[tabulator-field="detector"],
     .tabulator-header .tabulator-col[tabulator-field="projeto_cod"],
@@ -31,10 +30,10 @@
     .tabulator-header .tabulator-col[tabulator-field="causas_principais"],
     .tabulator-header .tabulator-col[tabulator-field="acao_corretiva"],
     .tabulator-header .tabulator-col[tabulator-field="eficacia_texto"] {
-        background-color: #e0f2fe !important; /* Azul muito clarinho */
-        color: #0284c7 !important; /* Texto em azul destaque */
-        border-bottom: 3px solid #38bdf8 !important; /* Linha azul grossa embaixo */
-        cursor: text !important; /* Muda o mouse para indicar edição */
+        background-color: #e0f2fe !important;
+        color: #0284c7 !important;
+        border-bottom: 3px solid #38bdf8 !important;
+        cursor: text !important;
     }
 </style>
 
@@ -132,6 +131,21 @@
                                 <option value="Alto">Alto</option>
                                 <option value="Médio">Médio</option>
                                 <option value="Baixo">Baixo</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">Origem *</label>
+                            <select name="criticidade" class="form-select shadow-sm" required>
+                                <option value="">Selecione...</option>
+                                <option value="Comercial">Comercial</option>
+                                <option value="Projeto_Engenharia">Projeto/Engenharia</option>
+                                <option value="Fabricação">Fabricação</option>
+                                <option value="Montagem_comissionamento">Montagem/Comissionamento</option>
+                                <option value="Suprimentos">Suprimentos</option>
+                                <option value="RH">RH</option>
+                                <option value="Fornecedor">Fornecedor</option>
+                                <option value="SGQ">SGQ</option>
                             </select>
                         </div>
 
@@ -242,9 +256,7 @@
 // ABERTURA DO ESCOPO PRINCIPAL DO JAVASCRIPT
 document.addEventListener('DOMContentLoaded', function() {
 
-    // ==========================================
     // FORMATAÇÃO E INICIALIZAÇÃO DA TABELA
-    // ==========================================
     var formatarDataBR = function(cell){
         let val = cell.getValue();
         if(val && val.includes('-')){
@@ -321,13 +333,10 @@ document.addEventListener('DOMContentLoaded', function() {
                  if (!headerValue) return true;
                  // Se a célula estiver vazia mas há filtro, esconde a linha
                  if (!rowValue) return false;
-
                  // Pega o que o utilizador digitou, separa por vírgula, e converte para minúsculas
                  let termos = headerValue.split(',').map(termo => termo.trim().toLowerCase()).filter(termo => termo !== "");
-
                  // Pega o valor da célula (banco de dados) e converte para minúsculas
                  let valorCelula = String(rowValue).toLowerCase();
-
                  // Retorna TRUE se a célula contiver ALGUM (some) dos termos digitados (Lógica OR)
                  return termos.some(termo => valorCelula.includes(termo));
              }
@@ -335,6 +344,11 @@ document.addEventListener('DOMContentLoaded', function() {
             {title: "Equipamento", field: "equipamento", width: 160, headerFilter: "input", headerFilterFunc: filtroMultiploTexto},
             {title: "Elemento Rastreador", field: "elemento_rastreador", width: 130, headerFilter: "input", editor: "input"},
             {title: "Local Detecção", field: "local", width: 130, headerFilter: "input", headerFilterFunc: filtroMultiploTexto},
+            {title: "Origem", field: "origem", width: 130,
+            headerFilter: "list",
+            headerFilterFunc: "in",
+            headerFilterParams: {valuesLookup:true, clearable:true, multiselect:true},
+            editor: "list", editorParams: {values: ["Comercial", "Projeto_Engenharia", "Fabricação", "Montagem_comissionamento", "Suprimentos", "RH", "Fornecedor", "Processo_interno_SGQ"]}},
             {title: "Categoria da Não Conformidade", field: "categoria", width: 130,
             headerFilter: "list",
             headerFilterFunc: "in",
@@ -440,17 +454,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // ==========================================
     // BOTÃO DE EXPORTAÇÃO EXCEL
-    // ==========================================
     document.getElementById("download-xlsx").addEventListener("click", function(){
         table.download("xlsx", "Controle_RNCs_I9TMG.xlsx", {sheetName:"RNCs"});
     });
 
 
-    // ==========================================
     // SUBMIT: CRIAR NOVA RNC (MODAL 1)
-    // ==========================================
     document.getElementById("formNovaRNC").addEventListener("submit", function(event){
         event.preventDefault();
 
@@ -493,9 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // ==========================================
     // FUNÇÃO: ABRIR MODAL DE EDIÇÃO AVANÇADA
-    // ==========================================
     window.abrirModalEdicao = function(dados) {
         document.getElementById('display_rnc_id').innerText = dados.id;
         document.getElementById('edit_rnc_id').value = dados.id;
@@ -515,9 +523,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modalEditar.show();
     };
 
-    // ==========================================
     // SUBMIT: SALVAR EDIÇÃO AVANÇADA (MODAL 2)
-    // ==========================================
     document.getElementById("formEditarRNC").addEventListener("submit", function(event){
         event.preventDefault();
 
@@ -559,9 +565,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // ==========================================
     // FUNÇÃO: ABRIR GALERIA DE IMAGENS
-    // ==========================================
     window.abrirGaleriaImagens = function(dados, tipo) { // <-- Parâmetro é 'tipo'
         let containerGaleria = document.getElementById('galeria_content');
         containerGaleria.innerHTML = ''; // Limpa a galeria anterior

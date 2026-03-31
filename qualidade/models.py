@@ -64,6 +64,17 @@ class RNC(models.Model):
         PRELIMINAR = 'PR', 'Registro preliminar'
         CANCELADO = 'CA', 'Cancelado'
 
+    class Origem(models.TextChoices):
+        COMERCIAL = 'CO', 'Comercial'
+        PROJETO_ENGENHARIA  = 'PE', 'Projeto_Engenharia'
+        FABRICACAO = 'FA', 'Fabricação'
+        MONTAGEM_COMISSIONAMENTO = 'MC', 'Montagem_comissionamento'
+        SUPRIMENTOS = 'SU', 'Suprimentos'
+        RH = 'RH', 'RH'
+        FORNECEDOR = 'FO', 'Fornecedor'
+        SGQ = 'SG', 'Processo_interno_SGQ'
+
+
     # --- Identificação e Origem ---
     registrador = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='rncs_registradas', verbose_name='Registrado por')
     data_abertura = models.DateField('Data de Abertura', auto_now_add=True)
@@ -75,6 +86,7 @@ class RNC(models.Model):
     categoria = models.CharField('Categoria da NC', max_length=2, choices=CategoriaChoices.choices, default=CategoriaChoices.COMERCIAL)
     criticidade = models.CharField('Nível de Criticidade', max_length=1, choices=CriticidadeChoices.choices)
     status = models.CharField('Status', max_length=2, choices=StatusChoices.choices, default=StatusChoices.PRELIMINAR)
+    origem = models.CharField('Origem', max_length=2, choices=Origem.choices, default=Origem.COMERCIAL)
 
     # --- Relacionamentos de Domínio (ForeignKeys) ---
     equipamento = models.ForeignKey(Equipamento, on_delete=models.PROTECT, verbose_name='Equipamento', blank=True, null=True)
