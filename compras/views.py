@@ -250,36 +250,24 @@ def atualizar_dados_dw(request):
         return redirect('dashboard_compras')
 
     try:
-<<<<<<< Updated upstream
         # Importa os robôs e os caminhos
         from compras.scripts.sync_protheus import (
             baixar_dados_totvs, processar_dados, processar_dados_operacional,
             EXCEL_PATH, EXCEL_OPERACIONAL_PATH
         )
-=======
-<<<<<<< Updated upstream
+
         # Importa as funções do script e o caminho do Excel gerado
         from compras.scripts.sync_protheus import baixar_dados_totvs, processar_dados, EXCEL_PATH
-=======
         # Importa os robôs e os caminhos
         from compras.scripts.sync_protheus import (
             baixar_dados_totvs, processar_dados, processar_dados_operacionais,
             EXCEL_PATH, EXCEL_OPERACIONAL_PATH
         )
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
         # Executa a extração e as DUAS transformações
         baixar_dados_totvs()
         processar_dados()
-<<<<<<< Updated upstream
         processar_dados_operacional()
-=======
-<<<<<<< Updated upstream
-=======
-        processar_dados_operacionais()
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
         df_dw = pd.read_excel(EXCEL_PATH)
         registros_dw = []
@@ -328,12 +316,6 @@ def atualizar_dados_dw(request):
                 dias_atraso_entrega=limpa_int(row.get('Dias_Atraso_Entrega'))
             ))
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-        # Injeção no Banco de Dados com Transação Atômica
-=======
->>>>>>> Stashed changes
 
         df_op = pd.read_excel(EXCEL_OPERACIONAL_PATH)
         registros_op = []
@@ -348,10 +330,7 @@ def atualizar_dados_dw(request):
                 projeto_cod=limpa_str(row.get('Projeto_Cod')),
                 tarefa_cod=limpa_str(row.get('Tarefa_Cod')),
                 num_pedidos_vinculados=limpa_str(row.get('Num_Pedidos_Vinculados')),
-<<<<<<< Updated upstream
-=======
                 notas_fiscais=limpa_str(row.get('Notas_Fiscais')),
->>>>>>> Stashed changes
                 nome_fornecedor=limpa_str(row.get('Nome_Fornecedor')),
                 status_operacional=limpa_str(row.get('Status_Operacional')),
                 emissao_sc=limpa_data(row.get('Emissao_SC')),
@@ -366,10 +345,6 @@ def atualizar_dados_dw(request):
             ))
 
         # Injeção no Banco de Dados com Transação Atômica (O Maestro)
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
         with transaction.atomic():
             # Limpa as duas gavetas
             DataWarehouseCompras.objects.all().delete()
@@ -385,23 +360,48 @@ def atualizar_dados_dw(request):
     except Exception as e:
         messages.error(request, f"Falha na sincronização: {str(e)}")
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-    return redirect('dashboard_compras')
-=======
->>>>>>> Stashed changes
     return redirect('dashboard_compras')
 
 
 @login_required(login_url='/login/')
 def dashboard_operacional(request):
-<<<<<<< Updated upstream
+    """Dashboard focado na operação compras"""
+
+    if not (request.user.is_superuser or getattr(request.user, 'is_compras', False) or getattr(request.user, 'is_ti', False)):
+        messages.error(request, "Acesso restrito à equipe de Compras.")
+        return redirect('home')
+
+    # Busca todos os dados operacionais
+    operacoes = OperacaoCompras.objects.all()
+
+    # Filtros simples
+    projeto_filtros = request.GET.get('projeto')
+    status_filtro = request.GET.get('status')
+
+    if projeto_filtros:
+        operacoes = operacoes.filter(projeto_cod=projeto_filtros)
+    if status_filtro:
+        operacoes = operacoes.filter(status_operacional=status_filtro)
+
+    # KPIS
+    kpis = {
+        'pendentes_cotação': operacoes.filter(status_operacional='PENDENTE_COTAÇÃO'),
+        'compras_parciais': operacoes.filter(status_operacional='COMPRAS_PARCIAIS'),
+        'entregas_parciais': operacoes.filter(status_operacional= 'ENTREGA PARCIAL'),
+        'aguardando_entrega': operacoes.filter(status_operacional='AGUARDANDO_ENTREGA')
+    }
+
+    lista_projetos = OperacaoCompras.objects.exclude(projeto_cod='').values_list('projeto_cod', flat=True).distinct().order_by('projeto_cod')
+    lista_status = OperacaoCompras.objects.exclude(status_operacional='').values_list('status_operacional',flat=True).distinct().order_by('status_operacional')
 
 
+    context = {
+        'operacoes': operacoes,
+        'kpis': kpis,
+        'lista_projetos': lista_projetos,
+        'lista_status': lista_status,
+    }
 
-    return render(request, 'compras/dashboard_operacional.html')
-=======
     """
     Dashboard focado na operação (Compradores).
     Traz os dados agregados da OperacaoCompras para acompanhamento de filas e parciais.
@@ -436,7 +436,7 @@ def dashboard_operacional(request):
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="fila_operacional_compras.csv"'
-        response.write(u'\ufeff'.encode('utf8'))  # Força o Excel a entender acentuação (UTF-8 com BOM)
+        response.write(u'\ufeff'.encode('utf8'))
 
         writer = csv.writer(response, delimiter=';')
 
@@ -489,7 +489,4 @@ def dashboard_operacional(request):
         }
     }
 
-    # RETORNO (A linha que estava faltando ou mal indentada)
     return render(request, 'compras/dashboard_operacional.html', context)
->>>>>>> Stashed changes
->>>>>>> Stashed changes

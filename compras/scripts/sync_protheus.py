@@ -171,7 +171,6 @@ def enviar_para_nuvem():
         print(f"[ERRO CRÍTICO] Falha de conexão: {e}")
 
 
-<<<<<<< Updated upstream
 def processar_dados_operacionais():
     print('[ETL OPERACIONAL] processando base bottom_up')
 
@@ -180,9 +179,7 @@ def processar_dados_operacionais():
     df_sa2 = ler_tabela_sqlite('sa2_extracao.sqlite.sdb')
     df_sd1 = ler_tabela_sqlite('sd1_extracao.sqlite.sdb')
     df_afg = ler_tabela_sqlite('afg_extracao.sqlite.sdb')
-=======
-<<<<<<< Updated upstream
-=======
+
 def processar_dados_operacionais():
     print('[ETL OPERACIONAL] Processando base bottom-up...')
 
@@ -191,7 +188,6 @@ def processar_dados_operacionais():
     df_sa2 = ler_tabela_sqlite('sa201011.sdb')
     df_sd1 = ler_tabela_sqlite('sd10101.sdb')
     df_afg = ler_tabela_sqlite('afg0101.sdb')
->>>>>>> Stashed changes
 
     for df in [df_sc1, df_sc7, df_sa2, df_sd1, df_afg]:
         if 'D_E_L_E_T_' in df.columns:
@@ -200,18 +196,14 @@ def processar_dados_operacionais():
         colunas_remover = [c for c in ['D_E_L_E_T_', 'R_E_C_N_O_', 'R_E_C_D_E_L_'] if c in df.columns]
 
         df.drop(columns=colunas_remover, inplace=True, errors='ignore')
-<<<<<<< Updated upstream
         for col in df.columns: df[col] = df[col].str.strip()  # Strip geral
-=======
         for col in df.columns: df[col] = df[col].str.strip()
->>>>>>> Stashed changes
 
     # Tipagem para evitar falhas em somas
     df_sd1['D1_QUANT'] = pd.to_numeric(df_sd1['D1_QUANT'], errors='coerce').fillna(0)
     df_sc7['C7_QUANT'] = pd.to_numeric(df_sc7['C7_QUANT'], errors='coerce').fillna(0)
     df_sc1['C1_QUANT'] = pd.to_numeric(df_sc1['C1_QUANT'], errors='coerce').fillna(0)
 
-<<<<<<< Updated upstream
     # Agrupo entradas por pedido
     df_sd1_agg = df_sc1.groupby(['D1_FILIAL', 'D1_PEDIDO', 'D1_ITEMPC']).agg(
         QTD_RECEBIDA_TOTAL = ('D1_QUANT', 'sum'),
@@ -219,20 +211,17 @@ def processar_dados_operacionais():
     ).reset_index()
 
     # Junta entradas (SD1) por pedido
-=======
     df_sd1_agg = df_sd1.groupby(['D1_FILIAL', 'D1_PEDIDO', 'D1_ITEMPC']).agg(
         QTD_RECEBIDA_TOTAL=('D1_QUANT', 'sum'),
         NOTAS_FISCAIS=('D1_DOC', lambda x: ', '.join(x.dropna().unique())),
         DATA_ULTIMA_ENTREGA=('D1_DTDIGIT', 'max')
     ).reset_index()
 
->>>>>>> Stashed changes
     df_sc7_sd1 = pd.merge(df_sc7, df_sd1_agg, how='left',
                           left_on=['C7_FILIAL', 'C7_NUM', 'C7_ITEM'],
                           right_on=['D1_FILIAL', 'D1_PEDIDO', 'D1_ITEMPC'])
     df_sc7_sd1['QTD_RECEBIDA_TOTAL'] = df_sc7_sd1['QTD_RECEBIDA_TOTAL'].fillna(0)
 
-<<<<<<< Updated upstream
     # Agrupa pedidos (SD7) aos Pedidos (SC7)
     df_sc7_agg = df_sc7_sd1.groupby(['C7_FILIAL', 'C7_NUMSC', 'C7_ITEMSC']).agg(
         QTD_PEDIDA_TOTAL = ('C7_QUANT', 'sum'),
@@ -243,7 +232,6 @@ def processar_dados_operacionais():
         DATA_ULTIMO_PEDIDO = ('C7_EMISSAO', 'max'),
         PREVISAO_ENTREGA = ('C7_DATPRF', 'max')
     ).reset_index( )
-=======
     df_sc7_agg = df_sc7_sd1.groupby(['C7_FILIAL', 'C7_NUMSC', 'C7_ITEMSC']).agg(
         QTD_PEDIDA_TOTAL=('C7_QUANT', 'sum'),
         QTD_RECEBIDA_TOTAL=('QTD_RECEBIDA_TOTAL', 'sum'),
@@ -255,7 +243,6 @@ def processar_dados_operacionais():
         PREVISAO_ENTREGA=('C7_DATPRF', 'max'),
         DATA_ULTIMA_ENTREGA=('DATA_ULTIMA_ENTREGA', 'max')
     ).reset_index()
->>>>>>> Stashed changes
 
     # Base final operacional
     df_op = pd.merge(df_sc1, df_sc7_agg, how='left',
@@ -280,14 +267,11 @@ def processar_dados_operacionais():
     df_op['SALDO_A_RECEBER'] = (df_op['QTD_PEDIDA_TOTAL'] - df_op['QTD_RECEBIDA_TOTAL']).clip(lower=0)
 
     condicoes = [
-<<<<<<< Updated upstream
         (df_op['QTD_PEDIDA_TOTAL'] == 0),
         (df_op['SALDO_A_COMPRAR'] > 0) & (df_op['QTD_PEDIDA_TOTAL'] > 0),
         (df_op['SALDO_A_COMPRAR'] == 0) & (df_op['QTD_RECEBIDA_TOTAL'] == 0),
         (df_op['SALDO_A_COMPRAR'] == 0) & (df_op['SALDO_A_RECEBER'] > 0) & (df_op['QTD_RECEBIDA_TOTAL'] > 0),
-        (df_op['SALDO_A_COMPRAR'] == 0) & (df_op['SALDO_A_RECEBER'] == 0)
-=======
-        # Não gerou nenhum pedido ainda
+        (df_op['SALDO_A_COMPRAR'] == 0) & (df_op['SALDO_A_RECEBER'] == 0),
         (df_op['QTD_PEDIDA_TOTAL'] == 0),
 
         # Comprou alguma coisa, mas a quantidade comprada é menor que a solicitada
@@ -302,7 +286,6 @@ def processar_dados_operacionais():
 
         # A quantidade que já chegou é igual ou maior do que a que foi solicitada na SC
         (df_op['QTD_RECEBIDA_TOTAL'] >= df_op['C1_QUANT'])
->>>>>>> Stashed changes
     ]
     resultados = ['PENDENTE COTAÇÃO', 'COMPRA PARCIAL', 'AGUARDANDO ENTREGA', 'ENTREGA PARCIAL', 'ATENDIDO TOTAL']
     df_op['STATUS_OPERACIONAL'] = np.select(condicoes, resultados, default='DESCONHECIDO')
@@ -312,7 +295,6 @@ def processar_dados_operacionais():
     df_op['EMISSAO_SC_FMT'] = formatar_data(df_op['C1_EMISSAO'])
     df_op['EMISSAO_PEDIDO_FMT'] = formatar_data(df_op['DATA_ULTIMO_PEDIDO'])
     df_op['PREVISAO_ENTREGA_FMT'] = formatar_data(df_op['PREVISAO_ENTREGA'])
-<<<<<<< Updated upstream
 
     # Exportação
     mapa_colunas = {
@@ -333,8 +315,9 @@ def processar_dados_operacionais():
         'QTD_PEDIDA_TOTAL': 'Qtd_Pedida',
         'QTD_RECEBIDA_TOTAL': 'Qtd_Recebida',
         'SALDO_A_COMPRAR': 'Saldo_A_Comprar',
-=======
-    df_op['ENTREGA_REAL_FMT'] = formatar_data(df_op['DATA_ULTIMA_ENTREGA']) # CORREÇÃO 3
+    }
+
+    df_op['ENTREGA_REAL_FMT'] = formatar_data(df_op['DATA_ULTIMA_ENTREGA'])
 
     # Exportação
     mapa_colunas = {
@@ -347,7 +330,6 @@ def processar_dados_operacionais():
         'PREVISAO_ENTREGA_FMT': 'Previsao_Entrega', 'ENTREGA_REAL_FMT': 'Ultima_Entrega_Real',
         'C1_QUANT': 'Qtd_Solicitada', 'QTD_PEDIDA_TOTAL': 'Qtd_Pedida',
         'QTD_RECEBIDA_TOTAL': 'Qtd_Recebida', 'SALDO_A_COMPRAR': 'Saldo_A_Comprar',
->>>>>>> Stashed changes
         'SALDO_A_RECEBER': 'Saldo_A_Receber'
     }
 
@@ -356,11 +338,6 @@ def processar_dados_operacionais():
     df_final.to_excel(EXCEL_OPERACIONAL_PATH, index=False, engine='openpyxl')
 
 
-
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 if __name__ == "__main__":
     print("=== INICIANDO PIPELINE DE COMPRAS ===")
     baixar_dados_totvs()

@@ -47,12 +47,6 @@ class DataWarehouseCompras(models.Model):
         return f"SC: {self.num_sc} | Pedido: {self.num_pedido} | Valor: R$ {self.valor_total}"
 
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-    
-=======
->>>>>>> Stashed changes
 class OperacaoCompras(models.Model):
     # Chaves da Solicitação (SC1)
     filial = models.CharField(max_length=20, null=True, blank=True)
@@ -67,10 +61,7 @@ class OperacaoCompras(models.Model):
 
     # Vínculos com Pedido e Fornecedor
     num_pedidos_vinculados = models.CharField(max_length=255, null=True, blank=True)
-<<<<<<< Updated upstream
-=======
     notas_fiscais = models.CharField(max_length=255, null=True, blank=True)
->>>>>>> Stashed changes
     nome_fornecedor = models.CharField(max_length=255, null=True, blank=True)
 
     # Status Dinâmico de Ação
@@ -94,9 +85,4 @@ class OperacaoCompras(models.Model):
         verbose_name_plural = "Operações de Compras"
 
     def __str__(self):
-<<<<<<< Updated upstream
         return f"SC: {self.num_sc} | Status: {self.status_operacional}"
-=======
-        return f"SC: {self.num_sc} | Status: {self.status_operacional}"
->>>>>>> Stashed changes
->>>>>>> Stashed changes
