@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Operação de Compras - I9TMG{% endblock %}
+
+{% block content %}
+<style>
+    .kpi-card { border: none; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: transform 0.2s; }
+    .kpi-card:hover { transform: translateY(-5px); }
+    .kpi-title { font-size: 0.85rem; font-weight: 600; color: #6c757d; text-transform: uppercase; }
+    .kpi-value { font-size: 1.8rem; font-weight: 700; color: var(--azul-principal); }
+    .filter-card { background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .table-container { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+
+    /* Cores dos Status */
+    .badge-pendente { background-color: #dc3545; } /* Vermelho */
+    .badge-parcial-compra { background-color: #fd7e14; } /* Laranja */
+    .badge-aguardando { background-color: #ffc107; color: #000; } /* Amarelo */
+    .badge-parcial-entrega { background-color: #17a2b8; } /* Ciano */
+    .badge-total { background-color: #28a745; } /* Verde */
+</style>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="fw-bold" style="color: var(--azul-principal);">
+            <i class="bi bi-list-check me-2"></i> Fila Operacional de Compras
+        </h3>
+        <div>
+            <a href="{% url 'atualizar_dados_dw' %}" class="btn btn-primary" onclick="mostrarCarregamento(this)">
+                <i class="bi bi-arrow-arrows-o" id="icone-sync"></i>
+                <span id="texto-sync">Sincronizar ERP</span>
+            </a>
+            <button type="submit" name="export_csv" value="1" class="btn btn-primary">
+                <i class="bi bi-file-earmark-excel me-1"></i> Exportar Base
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-danger">
+                <div class="kpi-title mb-1">Pendentes de Cotação</div>
+                <div class="kpi-value">{{ kpis.pendentes_cotacao }} <span class="fs-6 text-muted fw-normal">itens</span></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-warning">
+                <div class="kpi-title mb-1">Compras Parciais</div>
+                <div class="kpi-value">{{ kpis.compras_parciais }} <span class="fs-6 text-muted fw-normal">itens</span></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-info">
+                <div class="kpi-title mb-1">Entregas Parciais</div>
+                <div class="kpi-value">{{ kpis.entregas_parciais }} <span class="fs-6 text-muted fw-normal">itens</span></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-secondary">
+                <div class="kpi-title mb-1">Aguardando Entrega</div>
+                <div class="kpi-value">{{ kpis.aguardando_entrega }} <span class="fs-6 text-muted fw-normal">itens</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-card">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Projeto</label>
+                <select name="projeto" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todos os Projetos</option>
+                    {% for proj in lista_projetos %}
+                        <option value="{{ proj }}" {% if filtros.projeto == proj %}selected{% endif %}>{{ proj }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Status</label>
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todos os Status</option>
+                    {% for status in lista_status %}
+                        <option value="{{ status }}" {% if filtros.status == status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Pedido</label>
+                <input type="text" name="pedido" class="form-control form-control-sm" value="{{ filtros.pedido|default_if_none:'' }}" placeholder="Ex: PC001">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Nota Fiscal</label>
+                <input type="text" name="nota" class="form-control form-control-sm" value="{{ filtros.nota|default_if_none:'' }}" placeholder="Ex: 12345">
+            </div>
+
+            <div class="col-md-auto ms-auto d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary px-3">
+                    <i class="bi bi-funnel me-1"></i> Filtrar
+                </button>
+                <a href="{% url 'dashboard_operacional' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-eraser me-1"></i> Limpar
+                </a>
+                <button type="submit" name="export_csv" value="1" class="btn btn-sm btn-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Exportar Base
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="table-container">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle" id="tabelaOperacao">
+                <thead class="table-light">
+                    <tr>
+                        <th>SC</th>
+                        <th>Item</th>
+                        <th>Produto / Descrição</th>
+                        <th>Projeto</th>
+                        <th>Pedido(s)</th> <th>NF(s)</th>     <th>Fornecedor(es)</th>
+
+                        <th class="text-center">Qtd. Solicitada</th>
+                        <th class="text-center">Qtd. Comprada</th>
+                        <th class="text-center">Qtd. Entregue</th>
+
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for op in operacoes %}
+                    <tr>
+                        <td class="fw-bold">{{ op.num_sc }}</td>
+                        <td>{{ op.item_sc }}</td>
+                        <td>
+                            <span class="fw-semibold">{{ op.cod_produto }}</span><br>
+                            <small class="text-muted" style="font-size: 0.75rem;">{{ op.descricao }}</small>
+                        </td>
+                        <td>{{ op.projeto_cod }}</td>
+
+                        <td class="text-primary fw-semibold">{{ op.num_pedidos_vinculados|default:"-" }}</td>
+                        <td class="text-secondary fw-semibold">{{ op.notas_fiscais|default:"-" }}</td>
+
+                        <td class="small">{{ op.nome_fornecedor|default:"-" }}</td>
+
+                        <td class="text-center">{{ op.qtd_solicitada }}</td>
+                        <td class="text-center fw-bold text-primary">{{ op.qtd_pedida }}</td>
+                        <td class="text-center fw-bold text-success">{{ op.qtd_recebida }}</td>
+
+                        <td>
+                            {% if op.status_operacional == 'PENDENTE COTAÇÃO' %}
+                                <span class="badge badge-pendente">Pendente Cotação</span>
+                            {% elif op.status_operacional == 'COMPRA PARCIAL' %}
+                                <span class="badge badge-parcial-compra">Compra Parcial</span>
+                            {% elif op.status_operacional == 'AGUARDANDO ENTREGA' %}
+                                <span class="badge badge-aguardando">Aguardando Entrega</span>
+                            {% elif op.status_operacional == 'ENTREGA PARCIAL' %}
+                                <span class="badge badge-parcial-entrega">Entrega Parcial</span>
+                            {% else %}
+                                <span class="badge badge-total">Atendido Total</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function mostrarCarregamento(btn) {
+        btn.classList.add('disabled');
+        document.getElementById('icone-sync').className = 'spinner-border spinner-border-sm me-2';
+        document.getElementById('texto-sync').innerText = 'Sincronizando...';
+    }
+</script>
+{% endblock %}

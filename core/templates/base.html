@@ -47,7 +47,7 @@
                 padding-bottom: 1rem;
             }
             .main-content {
-                width: 100%; /* Garante que o conteúdo não vaze da tela */
+                width: 100%;
             }
         }
 
@@ -285,11 +285,19 @@
                     </a>
                     <div class="collapse {% if 'compras' in request.path %}show{% endif %}" id="menuCompras" data-bs-parent="#sidebarMenu">
                         <ul class="nav flex-column ms-3 ps-2 border-start border-secondary mb-2 mt-1">
+
                             <li class="nav-item">
                                 <a href="{% url 'dashboard_compras' %}" class="nav-link submenu-link {% if 'dashboard' in request.path %}active-sub{% endif %}">
-                                    <i class="bi bi-box-seam me-2"></i> Dashboard Compras
+                                    <i class="bi bi-graph-up-arrow me-2"></i> Visão Gerencial
                                 </a>
                             </li>
+
+                            <li class="nav-item">
+                                <a href="{% url 'dashboard_operacional' %}" class="nav-link submenu-link {% if 'operacional' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-list-check me-2"></i> Fila Operacional
+                                </a>
+                            </li>
+
                         </ul>
                     </div>
                 </li>
