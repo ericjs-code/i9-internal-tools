@@ -1,94 +1,22 @@
-import pandas as pd
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+import os
 import csv
 import json
 from datetime import datetime
-from django.http import HttpResponse
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
+from dotenv import load_dotenv
+
+import pandas as pd
 from django.contrib import messages
-from django.db.models import Sum, Avg, Count, Q
-from .models import DataWarehouseCompras, OperacaoCompras
-from django.db import transaction
-from .scripts.sync_protheus import processar_dados_operacionais
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models import Avg, Count, Q, Sum
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import redirect, render
+from django.views.decorators.csrf import csrf_exempt
 
+from .models import DataWarehouseCompras, OperacaoCompras
 
-@csrf_exempt
-def api_upload_compras(request):
-    """
-    API Recebedora: Lê o Excel enviado pelo script local e popula o DW.
-    """
-    if request.method == 'POST' and request.FILES.get('arquivo'):
-
-        token = request.headers.get('X-Api-Key')
-        if token != 'l_^e1#ye7@wro)4@gti24vxcmrr$01(@sxdp@=qg40(^vkvwzr':
-            return JsonResponse({'erro': 'Acesso negado. Token inválido.'}, status=403)
-
-        arquivo = request.FILES['arquivo']
-
-        try:
-            df = pd.read_excel(arquivo)
-
-            DataWarehouseCompras.objects.all().delete()
-
-            registros = []
-            for index, row in df.iterrows():
-                def limpa_str(val):
-                    return str(val).strip() if pd.notna(val) else ''
-
-                def limpa_num(val):
-                    return float(val) if pd.notna(val) else 0.0
-
-                def limpa_int(val):
-                    return int(val) if pd.notna(val) else 0
-
-                def limpa_data(val):
-                    val_str = str(val).strip()
-                    if val_str and val_str not in ['-', 'nan', 'NaT']:
-                        try:
-                            return datetime.strptime(val_str, '%d/%m/%Y').date()
-                        except ValueError:
-                            return None
-                    return None
-
-                registros.append(
-                    DataWarehouseCompras(
-                        filial=limpa_str(row.get('Filial')),
-                        num_sc=limpa_str(row.get('Num_SC')),
-                        cod_produto=limpa_str(row.get('Cod_Produto')),
-                        descricao=limpa_str(row.get('Descricao')),
-                        projeto_cod=limpa_str(row.get('Projeto_Cod')),
-                        tarefa_cod=limpa_str(row.get('Tarefa_Cod')),
-                        num_pedido=limpa_str(row.get('Num_Pedido')),
-                        cod_fornecedor=limpa_str(row.get('Cod_Fornecedor')),
-                        nome_fornecedor=limpa_str(row.get('Nome_Fornecedor')),
-                        status=limpa_str(row.get('Status')),
-                        emissao_sc=limpa_data(row.get('Emissao_SC')),
-                        emissao_pedido=limpa_data(row.get('Emissao_Pedido')),
-                        data_prev_recebimento_fisico=limpa_data(row.get('Data_Prev_Recebimento_Fisico')),
-                        data_recebimento_real=limpa_data(row.get('Data_Recebimento_Real')),
-                        qtd_solicitada=limpa_num(row.get('Qtd_Solicitada')),
-                        qtd_pedido=limpa_num(row.get('Qtd_Pedido')),
-                        qtd_recebida=limpa_num(row.get('Qtd_Recebida')),
-                        valor_unitario=limpa_num(row.get('Valor_Unitario')),
-                        valor_total=limpa_num(row.get('Valor_Total')),
-                        leadtime_compras=limpa_int(row.get('LeadTime_Compras')),
-                        leadtime_fornecedor=limpa_int(row.get('LeadTime_Fornecedor')),
-                        dias_atraso_entrega=limpa_int(row.get('Dias_Atraso_Entrega'))
-                    )
-                )
-
-            DataWarehouseCompras.objects.bulk_create(registros, batch_size=2000)
-
-            return JsonResponse({'mensagem': f'Carga concluída: {len(registros)} registros sincronizados.'}, status=200)
-
-        except Exception as e:
-            return JsonResponse({'erro': f'Falha no processamento: {str(e)}'}, status=500)
-
-    return JsonResponse({'erro': 'Requisição inválida ou sem arquivo.'}, status=400)
-
+load_dotenv()
 
 @login_required(login_url='/login/')
 def dashboard_compras(request):
