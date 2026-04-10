@@ -37,8 +37,9 @@ def dashboard_compras(request):
     exportar_csv = request.GET.get('export_csv')
 
     # QuerySet Base (Apenas Efetivados)
-    pedidos_efetivados = DataWarehouseCompras.objects.exclude(status='PENDENTE')
-
+    pedidos_efetivados = DataWarehouseCompras.objects.exclude(status='PENDENTE').filter(
+        tarefa_cod__startswith='03'
+    )
     # Aplicação de Filtros
     if projeto_filtro:
         pedidos_efetivados = pedidos_efetivados.filter(projeto_cod=projeto_filtro)
@@ -131,12 +132,13 @@ def dashboard_compras(request):
                                                                                       flat=True).distinct().order_by(
         'projeto_cod')
 
-    tarefas_query = DataWarehouseCompras.objects.exclude(tarefa_cod='')
+    tarefas_query = DataWarehouseCompras.objects.exclude(tarefa_cod='').filter(
+        tarefa_cod__startswith='03'
+    )
     if projeto_filtro: tarefas_query = tarefas_query.filter(projeto_cod=projeto_filtro)
     lista_tarefas = tarefas_query.values_list('tarefa_cod', flat=True).distinct().order_by('tarefa_cod')
 
-    lista_fornecedor = DataWarehouseCompras.objects.exclude(nome_fornecedor='').values_list('nome_fornecedor',
-                                                                                            flat=True).distinct().order_by(
+    lista_fornecedor = DataWarehouseCompras.objects.exclude(nome_fornecedor='').values_list('nome_fornecedor', flat=True).distinct().order_by(
         'nome_fornecedor')
 
     context = {

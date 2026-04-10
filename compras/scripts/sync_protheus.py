@@ -278,5 +278,4 @@ if __name__ == "__main__":
     print("=== INICIANDO PIPELINE DE COMPRAS ===")
     baixar_dados_totvs()
     processar_dados()
-    enviar_para_nuvem()
     print("=== PIPELINE FINALIZADO ===")
