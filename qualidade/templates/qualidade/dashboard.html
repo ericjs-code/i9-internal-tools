@@ -312,6 +312,11 @@
 // ABERTURA DO ESCOPO PRINCIPAL DO JAVASCRIPT
 document.addEventListener('DOMContentLoaded', function() {
 
+    var listaTodosUsuarios = [
+        {% for user in usuarios %}
+            "{{ user.get_full_name|default:user.username }}",
+        {% endfor %}
+    ];
     // SELECT DROPDOWN EDITAR RNC - RESPONSAVEIS
     window.choicesResp = new Choices('#edit_responsaveis', {
         removeItemButton: true,
@@ -328,6 +333,19 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!val) return "-";
         val = String(val).replace(/\//g, '-');
 
+        if(val.includes('-')){
+            let parts = val.split('-');
+            if(parts[0].length === 4){
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        }
+        return val;
+    };
+
+    // FORMATADOR EXCLUSIVO PARA O DOWNLOAD DO EXCEL
+    var formatarDataExcel = function(value, data, type, params, column){
+        if (!value) return "";
+        let val = String(value).replace(/\//g, '-');
         if(val.includes('-')){
             let parts = val.split('-');
             if(parts[0].length === 4){
@@ -364,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
         movableColumns: true,
 
         columns: [
-            {title: "Ações", field: "acoes", hozAlign: "center", formatter: function(cell){
+            {title: "Ações", field: "acoes", download: false, hozAlign: "center", formatter: function(cell){
                 return `<button class="btn btn-sm btn-primary py-0 btn-editar-rnc" title="Editar RNC completo">
                             <i class="bi bi-pencil-square"></i> Editar
                         </button>`;
@@ -400,7 +418,7 @@ document.addEventListener('DOMContentLoaded', function() {
              headerFilterFunc: "in",
              headerFilterParams: {valuesLookup:true, clearable:true, multiselect:true},
              editor: "list", editorParams: {values: ["Cliente", "Interno", "Auditor Interno", "Auditor Externo", "Fornecedor"]}},
-            {title: "Data Abertura", field: "data_abertura", headerFilter: "input", headerFilterFunc: filtroMultiploTexto, formatter: formatarDataBR},
+            {title: "Data Abertura", field: "data_abertura", accessorDownload: formatarDataExcel, headerFilter: "input", headerFilterFunc: filtroMultiploTexto, formatter: formatarDataBR},
             {title: "Projeto", field: "projeto_cod",
              headerFilter: "input", editor: "input",
              headerFilterFunc: function(headerValue, rowValue, rowData, filterParams) {
@@ -477,24 +495,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
             {title: "Responsavel", field: "responsaveis",
                 headerFilter: "list",
-                headerFilterFunc: 'in',
-                headerFilterParams: {valuesLookup: true, clearable: true, multiselect: true}
+                // Filtro Responsaveis
+                headerFilterFunc: function(headerValue, rowValue, rowData, filterParams) {
+                    // Se nada estiver selecionado no filtro, mostra todas as linhas
+                    if (!headerValue || headerValue.length === 0) return true;
+                    // Se a linha não tiver responsável, esconde
+                    if (!rowValue) return false;
+
+                    let textoCelula = String(rowValue);
+
+                    // Retorna verdadeiro se a célula tiver ALGUM dos responsáveis selecionados
+                    return headerValue.some(nomeSelecionado => textoCelula.includes(nomeSelecionado));
+                },
+                headerFilterParams: {
+                    values: listaTodosUsuarios,
+                    clearable: true,
+                    multiselect: true
+                }
             },
 
-            {title: "Data Previsão Conclusão", field: "data_prevista_conclusao", formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
-            {title: "Data Encerramento", field: "data_encerramento", formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
+            {title: "Data Previsão Conclusão", field: "data_prevista_conclusao", accessorDownload: formatarDataExcel, formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
+            {title: "Data Encerramento", field: "data_encerramento", accessorDownload: formatarDataExcel, formatter: formatarDataBR, editor: "date", editorParams:{ format:"yyyy-MM-dd" }},
 
             {title: "Ishikawa", field: "ishikawa_link", formatter: function(cell){
                 let url = cell.getValue();
                 if(url) return `<a href="${url}" target="_blank" class="text-primary text-decoration-none">Acessar</a>`;
                 return "-";
             }},
-            {title: "Evidência Eficácia PDF", field: "eficacia_pdf", formatter: function(cell){
+            {title: "Evidência Eficácia PDF", download: false, field: "eficacia_pdf", formatter: function(cell){
                 let url = cell.getValue();
                 if(url) return `<a href="${url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" style="font-size: 0.75rem;"><i class="bi bi-file-pdf"></i> PDF</a>`;
                 return "-";
             }},
-            {title: "Evidência Eficácia (Img)", field: "qtd_imagens_eficacia", hozAlign: "center", formatter: function(cell){
+            {title: "Evidência Eficácia (Img)", download: false, field: "qtd_imagens_eficacia", hozAlign: "center", formatter: function(cell){
                 let qtd = cell.getValue();
                 if(qtd > 0) {
                     return `<button type="button" class="btn btn-sm btn-outline-success py-0" style="font-size: 0.75rem;">
