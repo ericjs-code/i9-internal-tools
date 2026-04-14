@@ -10,8 +10,6 @@ from .forms import (CandidaturaForm, VagaForm, SolicitacaoVagaForm,
                     PesquisaDemissionalGeracaoForm, PesquisaDemissionalRespostaForm)
 from core.decorators import exige_permissao
 
-
-
 def portal_vagas(request):
     vagas = Vaga.objects.filter(ativa=True).order_by('-data_criacao')
     return render(request, 'rh/portal_vagas.html', {'vagas': vagas})
@@ -37,18 +35,13 @@ def aplicar_vaga(request, pk):
 
 
 @login_required(login_url='/admin/login')
-@exige_permissao(['is_rh', 'is_diretoria'])
-def painel_rh(request):
+@exige_permissao(['rh'])
+def triagem_rh(request):
     """
     Prepara a lista de candidatos e os contadores para a tela inicial do RH
     Sempre que o usuario clica em um link ou acessa uma URL, o navegador empacoda dados(quem é o usuario, qual o IP, get ou post?
     e manda para o Django. O Django transforma isso no objeto 'request'
     """
-
-    if not (request.user.is_superuser or getattr(request.user, 'is_rh', False) or getattr(request.user, 'is_diretoria',False)):
-        messages.error(request, 'ERR: Acesso restrio à equipe de RH e Diretoria')
-        return redirect('home')
-
     vaga_id = request.GET.get('vaga')
 
     vagas = Vaga.objects.all().order_by('-data_criacao')
@@ -73,21 +66,16 @@ def painel_rh(request):
         'total_entrevistas': total_entrevistas
     }
 
-    return  render(request, 'rh/painel_rh.html', context)
+    return  render(request, 'rh/triagem_rh.html', context)
 
 
 @login_required(login_url='/admin/login')
-@exige_permissao(['is_rh', 'is_diretoria'])
+@exige_permissao(['rh'])
 def detalhe_candidato(request, pk):
     """
     Exibe o currículo de um candidato e permite o usuario mudar de fase (aprovar ou reprovar)
     o pk pe o id do candidato quem vem da url
     """
-    if not (request.user.is_superuser or getattr(request.user, 'is_rh', False) or getattr(request.user, 'is_diretoria', False)):
-        messages.error(request, 'ERR: Acesso restrio à equipe de RH e Diretoria')
-        return redirect('home')
-
-
     candidatura =  get_object_or_404(Candidatura, pk=pk)
 
     if request.method == 'POST':
@@ -109,16 +97,12 @@ def detalhe_candidato(request, pk):
 
 
 @login_required(login_url='/admin/login')
-@exige_permissao(['is_rh', 'is_diretoria'])
+@exige_permissao(['rh', 'ti'])
 def gestao_vagas(request):
     """
     Painel para o RH gerenciar as vagas abertas e fechadas. Usamos o annotate(count()) para o banco ja trazer a contagem
     de candidatos por vaga em uma unica query
     """
-    if not (request.user.is_superuser or getattr(request.user, 'is_rh', False) or getattr(request.user, 'is_diretoria', False)):
-        messages.error(request, 'ERR: Acesso restrio à equipe de RH e Diretoria')
-        return redirect('home')
-
     vagas = Vaga.objects.annotate(total_candidatos=Count('candidaturas')).order_by('-ativa', '-data_criacao')
 
     vagas_abertas = vagas.filter(ativa=True).count()
@@ -134,10 +118,6 @@ def gestao_vagas(request):
 
 @login_required(login_url='/login/')
 def form_vaga(request, pk=None):
-    if not (request.user.is_superuser or getattr(request.user, 'is_rh', False) or getattr(request.user, 'is_diretoria', False)):
-        messages.error(request, 'ERR: Acesso restrio à equipe de RH e Diretoria')
-        return redirect('home')
-
     if pk:
         vaga = get_object_or_404(Vaga, pk=pk)
         titulo_pagina = "Editar Vaga"
@@ -180,17 +160,13 @@ def solicitar_abertura_vaga(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_rh', 'is_diretoria'])
+@exige_permissao(['rh'])
 def listar_solicitacoes(request):
     """
     O QUE FAZ: Painel do RH para ver todos os pedidos de vagas dos gestores.
     ENGENHARIA: Usamos Case/When para forçar o banco de dados a colocar o status
     'PENDENTE' sempre no topo da tabela, agilizando a vida do RH.
     """
-    if not (request.user.is_superuser or getattr(request.user, 'is_rh', False) or getattr(request.user, 'is_diretoria', False)):
-        messages.error(request, 'ERR: Acesso restrio à equipe de RH e Diretoria')
-        return redirect('home')
-
     # Ordenação customizada: Pendentes = 0, Aprovadas = 1, Reprovadas = 2
     solicitacoes = SolicitacaoVaga.objects.all().order_by(
         Case(
@@ -212,15 +188,11 @@ def listar_solicitacoes(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_rh', 'is_diretoria'])
+@exige_permissao(['rh'])
 def detalhe_solicitacao(request, pk):
     """
     Abre o pedido detalhado do gestor para o RH ler e dar o parecer (Aprovar/Reprovar).
     """
-    if not (request.user.is_superuser or getattr(request.user, 'is_rh', False) or getattr(request.user, 'is_diretoria', False)):
-        messages.error(request, 'ERR: Acesso restrio à equipe de RH e Diretoria')
-        return redirect('home')
-
     solicitacao = get_object_or_404(SolicitacaoVaga, pk=pk)
 
     if request.method == 'POST':
@@ -241,7 +213,7 @@ def detalhe_solicitacao(request, pk):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_rh', 'is_diretoria'])
+@exige_permissao(['rh'])
 def listar_pesquisas(request):
     pesquisas = PesquisaDemissional.objects.all().order_by('-data_geracao')
 
@@ -283,11 +255,8 @@ def listar_pesquisas(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_rh', 'is_diretoria'])
+@exige_permissao(['rh'])
 def gerar_pesquisa(request):
-    if not (request.user.is_superuser or getattr(request.user, 'is_rh', False)):
-        messages.error(request, "Acesso restrito ao RH.")
-        return redirect('home')
 
     if request.method == 'POST':
         form = PesquisaDemissionalGeracaoForm(request.POST)

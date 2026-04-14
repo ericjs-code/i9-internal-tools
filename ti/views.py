@@ -38,11 +38,8 @@ def novo_chamado(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_ti', 'is_diretoria'])
+@exige_permissao(['ti'])
 def ti_admin(request):
-    if not (request.user.is_superuser or getattr(request.user, 'is_ti', False) or getattr(request.user.is_diretoria, False)):
-        messages.error(request, "Acesso restrito à equipe de Tecnologia.")
-        return redirect('home')
 
     chamados = Chamado.objects.exclude(status__in=['CONCLUIDO', 'CANCELADO', 'RESOLVIDO']).order_by('-data_abertura', '-id')
     total_abertos = chamados.count()
@@ -59,12 +56,8 @@ def ti_admin(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_ti', 'is_diretoria'])
+@exige_permissao(['ti'])
 def dashboard_ti(request):
-    if not (request.user.is_superuser or getattr(request.user, 'is_ti', False)):
-        messages.error(request, "Acesso restrito à equipe de Tecnologia.")
-        return redirect('home')
-
     total_chamados = Chamado.objects.exclude(status='CANCELADO').count()
     chamados_abertos = Chamado.objects.filter(status__in=['NOVO', 'ATRIBUIDO', 'EM_ANALISE']).count()
     chamados_andamento = Chamado.objects.filter(status='EM_ATENDIMENTO').count()
@@ -128,12 +121,8 @@ def dashboard_ti(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_ti', 'is_diretoria'])
+@exige_permissao(['ti'])
 def atender_chamado(request, pk):
-    if not (request.user.is_superuser or getattr(request.user, 'is_ti', False)):
-        messages.error(request, "Acesso restrito à equipe de Tecnologia.")
-        return redirect('home')
-
     chamado = get_object_or_404(Chamado, pk=pk)
 
     if request.method == 'POST':
@@ -194,19 +183,15 @@ def detalhe_meu_chamado(request, pk):
 User = get_user_model()
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_ti', 'is_diretoria'])
+@exige_permissao(['ti'])
 def gestao_usuarios(request):
     """ Lista todos os usuários do ERP. Apenas TI e Diretoria acessam. """
-    if not (request.user.is_superuser or getattr(request.user, 'is_ti', False) or getattr(request.user, 'is_diretoria', False)):
-        messages.error(request, "Acesso restrito à TI.")
-        return redirect('home')
-
     usuarios = User.objects.all().order_by('-is_active', 'username')
     return render(request, 'ti/gestao_usuarios.html', {'usuarios': usuarios})
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_ti', 'is_diretoria'])
+@exige_permissao(['ti'])
 def form_usuario(request, pk=None):
     if not (request.user.is_superuser or getattr(request.user, 'is_ti', False)):
         messages.error(request, "Acesso restrito à TI.")

@@ -3,16 +3,13 @@ from django.shortcuts import redirect
 from django.contrib import messages
 
 
-def exige_permissao(permissoes_aceitas):
+def exige_permissao(modulos_aceitos):
     """Decorador para exige acesso"""
     def decorator(view_func):
         @wraps(view_func)
         def _wrapped_view(request, *args, **kwargs):
-            if request.user.is_superuser:
-                return view_func(request, *args, **kwargs)
-
-            for permissao in permissoes_aceitas:
-                if getattr(request.user, permissao, False):
+            for modulo in modulos_aceitos:
+                if request.user.pode_acessar_modulo(modulo):
                     return view_func(request, *args, **kwargs)
 
             messages.error (request, 'Acesso Restrito: Consulte a equipe de TI para liberação')

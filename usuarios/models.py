@@ -31,4 +31,30 @@ class CustomUser(AbstractUser):
             'pcp': self.is_pcp,
             'qualidade': self.is_qualidade,
         }
+
         return permissoes.get(modulo, False)
+
+    @property
+    def acesso_comercial(self):
+        return self.pode_acessar_modulo('comercial')
+    @property
+    def acesso_financeiro(self):
+        return self.pode_acessar_modulo('financeiro')
+    @property
+    def acesso_rh(self):
+        return self.pode_acessar_modulo('rh')
+    @property
+    def acesso_engenharia(self):
+        return self.pode_acessar_modulo('engenharia')
+    @property
+    def acesso_compras(self):
+        return self.pode_acessar_modulo('compras')
+    @property
+    def acesso_pcp(self):
+        return self.pode_acessar_modulo('pcp')
+    @property
+    def acesso_qualidade(self):
+        return self.pode_acessar_modulo('qualidade')
+    @property
+    def acesso_ti(self):
+        return self.is_ti or self.is_diretoria or self.is_superuser

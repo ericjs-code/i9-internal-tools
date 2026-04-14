@@ -4,17 +4,19 @@ from django.core.exceptions import ValidationError
 import uuid
 import os
 
+
 def validar_curriculo(value):
-    """Validador de Model para garantir que o ficheiro tem  no maximo 5MB e é tipo pdf ou word"""
+    """Validador de Model para garantir que o ficheiro tem no maximo 3MB e é tipo pdf ou word"""
     limite_mb = 3
     limite_maximo = limite_mb * 1024 * 1024
-    if value > limite_maximo:
-        ValorInvalido = f"Tamanho do arquivo excede o limite maximo de {limite_mb} MB"
 
-    extensao = os.path.splitext(value)[1].lower()
+    if value.size > limite_maximo:
+        raise ValidationError(f"Tamanho do arquivo excede o limite máximo de {limite_mb} MB.")
+    extensao = os.path.splitext(value.name)[1].lower()
     extensoes = ['.pdf', '.doc', '.docx']
+
     if extensao not in extensoes:
-        raise ValidationError('Por questões de segurança, envie apenas curriculos em PDF ou Word')
+        raise ValidationError('Por questões de segurança, envie apenas currículos em PDF ou Word.')
 
 class Vaga(models.Model):
 

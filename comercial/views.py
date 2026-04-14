@@ -10,12 +10,8 @@ from core.decorators import exige_permissao
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_comercial', 'is_diretoria'])
+@exige_permissao(['comercial'])
 def criar_sto(request):
-    if not request.user.pode_acessar_modulo('comercial'):
-        messages.error(request, "Acesso negado.")
-        return redirect('home')
-
     if request.method == 'POST':
         form = STOForm(request.POST, request.FILES)
         if form.is_valid():
@@ -39,22 +35,15 @@ def criar_sto(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_comercial', 'is_diretoria'])
+@exige_permissao(['comercial'])
 def listar_stos(request):
-    if not request.user.pode_acessar_modulo('comercial'):
-        messages.error(request, "Acesso negado.")
-        return redirect('home')
-
     stos = STO.objects.all().order_by('-data', '-id')
     return render(request, 'comercial/sto_lista.html', {'stos': stos})
 
 
 @login_required(login_url='login/')
-@exige_permissao(['is_comercial', 'is_diretoria'])
+@exige_permissao(['comercial'])
 def exportar_stos_csv(request):
-    if not request.user.pode_acessar_modulo('comercial'):
-        return HttpResponse("Acesso negado", status=403)
-
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="relatorio_stos_i9tmg.csv"'
     writer = csv.writer(response, delimiter=';')
@@ -83,23 +72,15 @@ def exportar_stos_csv(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_comercial', 'is_diretoria'])
+@exige_permissao(['comercial'])
 def ver_sto(request, pk):
-    if not request.user.pode_acessar_modulo('comercial'):
-        messages.error(request, "Acesso negado.")
-        return redirect('home')
-
     sto = get_object_or_404(STO, pk=pk)
     return render(request, 'comercial/sto_detalhe.html', {'sto': sto})
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_comercial', 'is_diretoria'])
+@exige_permissao(['comercial'])
 def editar_sto(request, pk):
-    if not request.user.pode_acessar_modulo('comercial'):
-        messages.error(request, "Acesso negado.")
-        return redirect('home')
-
     sto = get_object_or_404(STO, pk=pk)
 
     if request.method == 'POST':
@@ -132,12 +113,8 @@ def editar_sto(request, pk):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_comercial', 'is_diretoria'])
+@exige_permissao(['comercial'])
 def historico_versoes_iso(request):
-    if not request.user.pode_acessar_modulo('comercial'):
-        messages.error(request, "Acesso negado.")
-        return redirect('home')
-
     if request.method == 'POST':
         form = VersaoFormularioSTOForm(request.POST)
         if form.is_valid():

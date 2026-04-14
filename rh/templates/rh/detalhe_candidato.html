@@ -6,7 +6,7 @@
 <div class="container-fluid py-3" style="max-width: 1100px;">
 
     <div class="mb-4">
-        <a href="{% url 'painel_rh' %}" class="btn btn-sm btn-white border rounded-circle shadow-sm text-secondary me-2">
+        <a href="{% url 'triagem_rh' %}" class="btn btn-sm btn-white border rounded-circle shadow-sm text-secondary me-2">
             <i class="bi bi-arrow-left"></i>
         </a>
         <span class="text-muted fw-semibold">Voltar para a Triagem</span>
@@ -77,8 +77,8 @@
                         <div class="mb-4">
                             <label class="form-label fw-bold text-secondary small">Fase do Candidato (Status)</label>
                             <select name="status" class="form-select fw-semibold shadow-sm">
-                                {% for key, value in candidatura.STATUS_CANDIDATURA %}
-                                    <option value="{{ key }}" {% if candidatura.status == key %}selected{% endif %}>
+                                {% for key, value in candidatura.STATUS.choices%}
+                                    <option value="{{ key }}" {% if key == candidatura.status %} selected {% endif %}>
                                         {{ value }}
                                     </option>
                                 {% endfor %}

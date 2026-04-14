@@ -19,7 +19,7 @@ from .models import DataWarehouseCompras, OperacaoCompras
 load_dotenv()
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_compras', 'is_diretoria'])
+@exige_permissao(['compras'])
 def dashboard_compras(request):
 
     # Captura de Filtros do GET
@@ -164,7 +164,7 @@ def dashboard_compras(request):
 
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_compras', 'is_diretoria'])
+@exige_permissao(['compras'])
 def atualizar_dados_dw(request):
     """
     View acionada pelo botão do Dashboard.
@@ -281,9 +281,8 @@ def atualizar_dados_dw(request):
         return redirect('dashboard_compras')
 
 
-
 @login_required(login_url='/login/')
-@exige_permissao(['is_compras', 'is_diretoria'])
+@exige_permissao(['compras'])
 def dashboard_operacional(request):
     """Dashboard focado na operação compras"""
     # Busca todos os dados operacionais
@@ -321,10 +320,6 @@ def dashboard_operacional(request):
     Dashboard focado na operação (Compradores).
     Traz os dados agregados da OperacaoCompras para acompanhamento de filas e parciais.
     """
-    # Proteção
-    if not (request.user.is_superuser or getattr(request.user, 'is_compras', False) or getattr(request.user, 'is_ti', False)):
-        messages.error(request, "Acesso restrito à equipe de Compras.")
-        return redirect('home')
 
     # Busca
     operacoes = OperacaoCompras.objects.all()
