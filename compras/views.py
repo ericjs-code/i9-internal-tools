@@ -15,6 +15,7 @@ from django.shortcuts import redirect, render
 from core.decorators import exige_permissao
 
 from .models import DataWarehouseCompras, OperacaoCompras
+from .scripts.sync_protheus import extrair_dados_compras
 
 load_dotenv()
 
@@ -174,12 +175,12 @@ def atualizar_dados_dw(request):
     try:
         # Importa os robôs e os caminhos
         from compras.scripts.sync_protheus import (
-            baixar_dados_totvs, processar_dados, processar_dados_operacionais,
+            extrair_dados_compras, processar_dados, processar_dados_operacionais,
             EXCEL_PATH, EXCEL_OPERACIONAL_PATH
         )
 
         # Executa a extração e as DUAS transformações
-        baixar_dados_totvs()
+        extrair_dados_compras()
         processar_dados()
         processar_dados_operacionais()
 

@@ -18,7 +18,7 @@ class DataWarehouseCompras(models.Model):
     nome_fornecedor = models.CharField(max_length=255, null=True, blank=True)
     status = models.CharField(max_length=50, null=True, blank=True)
 
-    # Datas (Mantidas como CharField para evitar erro com o "-" gerado no seu ETL)
+    # Datas 
     emissao_sc = models.DateField(null=True, blank=True)
     emissao_pedido = models.DateField(null=True, blank=True)
     data_prev_recebimento_fisico = models.DateField(null=True, blank=True)

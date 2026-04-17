@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Engenharia - Estrutura Simples{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="text-dark fw-bold mb-0">
+            <i class="bi bi-diagram-3-fill me-2" style="color: var(--laranja-principal);"></i>
+            Extração de Estrutura Simples
+        </h4>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body p-4">
+            <h5 class="card-title fw-bold text-dark mb-3">Sincronização com ERP (Protheus)</h5>
+            <p class="text-muted mb-4">
+                Esta rotina conecta-se ao servidor Totvs via SFTP, extrai as tabelas de estrutura de produtos (SG1 e SB1), processa as regras de negócio e atualiza a base de dados interna do portal.
+            </p>
+            <form method="POST" action="{% url 'atualizar_banco_estrutura' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary px-4 py-2" style="background-color: var(--azul-principal); border: none;">
+                    <i class="bi bi-arrow-repeat me-2"></i> Atualizar Base de Dados
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="text-dark fw-bold mb-0">Visualização de Estrutura</h5>
+
+        <div class="d-flex gap-2">
+            <form method="GET" action="{% url 'extrai_estrutura_simples' %}" class="d-flex">
+                <input type="text" name="busca" class="form-control form-control-sm me-2" placeholder="Buscar código ou descrição..." value="{{ request.GET.busca }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
+                {% if request.GET.busca %}
+                    <a href="{% url 'extrai_estrutura_simples' %}" class="btn btn-sm btn-outline-danger ms-1" title="Limpar Busca"><i class="bi bi-x-lg"></i></a>
+                {% endif %}
+            </form>
+
+            {% if estruturas %}
+            <a href="{% url 'exportar_estrutura_excel' %}" class="btn btn-success btn-sm shadow-sm rounded-3 d-flex align-items-center">
+                <i class="bi bi-file-earmark-excel me-2"></i> Exportar
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 500px;">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>Nível</th>
+                            <th>Cód. Pai</th>
+                            <th>Descrição Pai</th>
+                            <th>Código Componente</th>
+                            <th>Descrição Componente</th>
+                            <th>Qtd. Necessária</th>
+                            <th>UM</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in estruturas %}
+                        <tr>
+                            <td><span class="badge bg-secondary">{{ item.nivel }}</span></td>
+                            <td class="fw-semibold">{{ item.codigo_pai }}</td>
+                            <td class="text-muted" style="font-size: 0.85rem;">{{ item.descricao_pai }}</td>
+                            <td class="fw-bold">{{ item.codigo_componente }}</td>
+                            <td>{{ item.descricao_componente }}</td>
+                            <td class="text-end">{{ item.quantidade_necessaria }}</td>
+                            <td>{{ item.unidade_medida_filho }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                Nenhum dado encontrado. Clique em "Atualizar Base de Dados".
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

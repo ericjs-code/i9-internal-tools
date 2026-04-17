@@ -1,57 +1,21 @@
 import os
-import paramiko
 import pandas as pd
 import numpy as np
 import sqlite3
-import requests
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-SFTP_HOST = os.getenv('SFTP_HOST')
-SFTP_PORT = os.getenv('SFTP_PORT', 1401)
-SFTP_USER = os.getenv('SFTP_USER')
-SFTP_PASS = os.getenv('SFTP_PASS')
-SFTP_REMOTE_DIR = os.getenv('SFTP_REMOTE_DIR')
-
-API_URL = os.getenv('API_URL')
-API_TOKEN = os.getenv('API_TOKEN')
+from core.utils.sftp_client import baixar_arquivos_sftp
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 EXCEL_PATH = os.path.join(DATA_DIR, 'report_SC_x_PC.xlsx')
 EXCEL_OPERACIONAL_PATH = os.path.join(DATA_DIR, 'report_operacional.xlsx')
 
-ARQUIVOS_ALVO = [
+ARQUIVOS_COMPRAS = [
     'sc10101.sdb', 'sc70101.sdb',
     'sa201011.sdb', 'sd10101.sdb', 'afg0101.sdb'
 ]
 
-
-def baixar_dados_totvs():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    print("[1/4] Conectando ao servidor TOTVS via SFTP...")
-    try:
-        ssh.connect(hostname=SFTP_HOST, port=SFTP_PORT, username=SFTP_USER, password=SFTP_PASS)
-        sftp = ssh.open_sftp()
-        sftp.chdir(SFTP_REMOTE_DIR)
-
-        for arquivo in ARQUIVOS_ALVO:
-            print(f"Baixando {arquivo}...")
-            sftp.get(arquivo, os.path.join(DATA_DIR, arquivo))
-
-        print("Download concluído.")
-    except Exception as e:
-        print(f"[ERRO] Falha no SFTP: {e}")
-        raise
-    finally:
-        if 'sftp' in locals(): sftp.close()
-        ssh.close()
-
+def extrair_dados_compras():
+    baixar_arquivos_sftp(arquivos_alvo=ARQUIVOS_COMPRAS, diretorio_destino=DATA_DIR)
 
 def ler_tabela_sqlite(nome_arquivo):
     caminho = os.path.join(DATA_DIR, nome_arquivo)
@@ -71,7 +35,6 @@ def ler_tabela_sqlite(nome_arquivo):
 
     return df.astype(str)
 
-
 def processar_dados():
     print("[2/4] Processando e limpando dados (ETL)...")
 
@@ -84,10 +47,12 @@ def processar_dados():
 
     # Limpeza Padrão Protheus
     for df in [df_sc1, df_sc7, df_sa2, df_sd1, df_afg]:
-        if 'D_E_L_E_T_' in df.columns: df.drop(df[df['D_E_L_E_T_'] == '*'].index, inplace=True)
+        if 'D_E_L_E_T_' in df.columns:
+            df.drop(df[df['D_E_L_E_T_'] == '*'].index, inplace=True)
         colunas_remover = [c for c in ['D_E_L_E_T_', 'R_E_C_N_O_', 'R_E_C_D_E_L_'] if c in df.columns]
         df.drop(columns=colunas_remover, inplace=True, errors='ignore')
-        for col in df.columns: df[col] = df[col].str.strip()  # Strip geral
+        for col in df.columns:
+            df[col] = df[col].str.strip()  # Strip geral
 
     # Merges
     df_merged = pd.merge(df_sc1, df_sc7, how='left', left_on=['C1_FILIAL', 'C1_NUM', 'C1_ITEM'],
@@ -120,12 +85,9 @@ def processar_dados():
     df_merged['STATUS_COMPRA'] = np.where(df_merged['D1_DTDIGIT'].notna() & (df_merged['D1_DTDIGIT'] != ''), 'ENTREGUE',
                                           df_merged['STATUS_COMPRA'])
 
-    df_merged['DIAS_LEAD_TIME'] = (df_merged['DATA_PEDIDO_REAL'] - df_merged['DATA_SC_REAL']).dt.days.fillna(0).astype(
-        int)
-    df_merged['DIAS_LEAD_FORNECEDOR'] = (
-                df_merged['DATA_PREV_RECEBIMENTO'] - df_merged['DATA_PEDIDO_REAL']).dt.days.fillna(0).astype(int)
-    df_merged['DIAS_ATRASO_ENTREGA'] = (
-                df_merged['DATA_RECEBIMENTO_REAL'] - df_merged['DATA_PREV_RECEBIMENTO']).dt.days.fillna(0).astype(int)
+    df_merged['DIAS_LEAD_TIME'] = (df_merged['DATA_PEDIDO_REAL'] - df_merged['DATA_SC_REAL']).dt.days.fillna(0).astype(int)
+    df_merged['DIAS_LEAD_FORNECEDOR'] = (df_merged['DATA_PREV_RECEBIMENTO'] - df_merged['DATA_PEDIDO_REAL']).dt.days.fillna(0).astype(int)
+    df_merged['DIAS_ATRASO_ENTREGA'] = (df_merged['DATA_RECEBIMENTO_REAL'] - df_merged['DATA_PREV_RECEBIMENTO']).dt.days.fillna(0).astype(int)
 
     # Exportação
     colunas_map = {
@@ -152,11 +114,11 @@ def processar_dados():
     df_final = df_final[cols_existentes]
 
     for col in ['Qtd_Solicitada', 'Qtd_Pedido', 'Qtd_Recebida', 'Valor_Unitario', 'Valor_Total']:
-        if col in df_final.columns: df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0)
+        if col in df_final.columns:
+            df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0)
 
     print(f"[3/4] Gerando arquivo Excel em: {EXCEL_PATH}")
     df_final.to_excel(EXCEL_PATH, index=False, engine='openpyxl')
-
 
 def processar_dados_operacionais():
     print('[ETL OPERACIONAL] Processando base bottom-up...')
@@ -173,11 +135,12 @@ def processar_dados_operacionais():
 
         colunas_remover = [c for c in ['D_E_L_E_T_', 'R_E_C_N_O_', 'R_E_C_D_E_L_'] if c in df.columns]
         df.drop(columns=colunas_remover, inplace=True, errors='ignore')
-        for col in df.columns: df[col] = df[col].str.strip()
+        for col in df.columns:
+            df[col] = df[col].str.strip()
 
     # Tipagem rigorosa para quantidades e financeiro
     df_sd1['D1_QUANT'] = pd.to_numeric(df_sd1['D1_QUANT'], errors='coerce').fillna(0)
-    df_sd1['D1_TOTAL'] = pd.to_numeric(df_sd1['D1_TOTAL'], errors='coerce').fillna(0)  # Financeiro da NF
+    df_sd1['D1_TOTAL'] = pd.to_numeric(df_sd1['D1_TOTAL'], errors='coerce').fillna(0)
     df_sc7['C7_QUANT'] = pd.to_numeric(df_sc7['C7_QUANT'], errors='coerce').fillna(0)
     df_sc1['C1_QUANT'] = pd.to_numeric(df_sc1['C1_QUANT'], errors='coerce').fillna(0)
 
@@ -273,9 +236,8 @@ def processar_dados_operacionais():
     print(f"[3.5/4] Gerando Excel Operacional em: {EXCEL_OPERACIONAL_PATH}")
     df_final.to_excel(EXCEL_OPERACIONAL_PATH, index=False, engine='openpyxl')
 
-
 if __name__ == "__main__":
     print("=== INICIANDO PIPELINE DE COMPRAS ===")
-    baixar_dados_totvs()
+    extrair_dados_compras()
     processar_dados()
     print("=== PIPELINE FINALIZADO ===")

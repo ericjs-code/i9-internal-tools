@@ -23,16 +23,17 @@ from django.contrib.auth import views as auth_views
 from django.views.static import serve
 
 urlpatterns = [
-                  path('painel-i9tmg-restrito/', admin.site.urls),
-                  path('login/', auth_views.LoginView.as_view(
-                      template_name='core/login.html',
-                      redirect_authenticated_user=True
-                  ), name='login'),
-                  path('logout/', auth_views.LogoutView.as_view(), name='logout'),
-                  path('', home, name='home'),
-                  path('comercial/', include('comercial.urls')),
-                  path('ti/', include('ti.urls')),
-                  path('rh/', include('rh.urls')),
-                  path('compras/', include('compras.urls')),
-                  path('qualidade/', include('qualidade.urls'))
-              ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+            path('painel-i9tmg-restrito/', admin.site.urls),
+            path('login/', auth_views.LoginView.as_view(
+                template_name='core/login.html',
+                redirect_authenticated_user=True
+            ), name='login'),
+            path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+            path('', home, name='home'),
+            path('comercial/', include('comercial.urls')),
+            path('ti/', include('ti.urls')),
+            path('rh/', include('rh.urls')),
+            path('compras/', include('compras.urls')),
+            path('qualidade/', include('qualidade.urls')),
+            path('engenharia/', include('engenharia.urls'))
+        ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
