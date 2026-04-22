@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Importar Ponto - I9TMG{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-5 text-center">
+                    <h3 class="fw-bold mb-3 text-warning">
+                        <i class="bi bi-clock-history me-2"></i>Importar Relatório de Ponto
+                    </h3>
+                    <p class="text-muted mb-4">Faça o upload do relatório extraído do RH.ID (em formato .CSV).</p>
+
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-3 text-start">
+                            <label class="form-label fw-bold">Mês de Referência do Arquivo:</label>
+                            <input type="date" name="data_referencia" class="form-control" required>
+                            <small class="text-muted">Escolha o 1º dia do mês (Ex: 01/04/2026 para o ponto de Abril)</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <input class="form-control form-control-lg" type="file" name="arquivo_csv" accept=".csv" required>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning btn-lg fw-bold text-dark border-0">
+                                Processar Horas
+                            </button>
+                            <a href="{% url 'dashboard_rh' %}" class="btn btn-light">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

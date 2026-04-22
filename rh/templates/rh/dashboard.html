@@ -10,9 +10,6 @@
             <h2 class="fw-bold m-0" style="color: var(--azul-principal);">
                 BI - Recursos Humanos
             </h2>
-            <small class="text-muted">
-                (Módulo em Desenvolvimento, os valores são fictícios)
-            </small>
         </div>
 
         <div class="d-flex flex-wrap align-items-center gap-2">
@@ -35,6 +32,11 @@
                style="background-color: var(--azul-principal); border: none;"
                onclick="mostrarCarregamento(this)">
                 <i class="bi bi-cloud-arrow-down-fill me-2"></i> Atualizar Indicadores
+            </a>
+            <a href="{% url 'importar_ponto_rh' %}"
+               class="btn btn-warning btn-sm d-flex align-items-center"
+               onclick="mostrarCarregamento(this)">
+                <i class="bi bi-clock-history me-2"></i> Importar Ponto
             </a>
         </div>
     </div>
@@ -136,12 +138,159 @@
                         </i>
                     </h6>
                     <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
-                        {{ desligamentos }}
+                        {{ desligamento }}
                     </h2>
                     <p class="text-muted small mt-2 mb-0">Neste ano</p>
                 </div>
             </div>
         </div>
+    </div>
+
+    <hr class="my-5 text-muted" style="opacity: 0.1;">
+
+    <h5 class="text-muted mb-3 text-uppercase" style="font-size: 0.85rem; letter-spacing: 1px;">
+        Funil de Contratação
+    </h5>
+
+    <div class="row g-2">
+        <div class="col-12 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-file-earmark-person me-2"></i> Contratados </span>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
+                        {{ contratados }}
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">Neste ano</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-file-earmark-person me-2"></i> CVs Recebidos</span>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
+                        {{ cvs_recebidos }}
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">Neste ano</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-file-earmark-person me-2"></i> Candidatos em Processo </span>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
+                        {{ em_processo }}
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">No quadro hoje</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-file-earmark-person me-2"></i> Total Vagas Criadas</span>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
+                        {{ total_vagas }}
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">Neste ano</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-2">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-file-earmark-person me-2"></i> Total Vagas Aberta </span>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
+                        {{ vagas_abertas }}
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">No quadro hoje</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <hr class="my-5 text-muted" style="opacity: 0.1;">
+
+    <h5 class="text-muted mb-3 text-uppercase" style="font-size: 0.85rem; letter-spacing: 1px;">
+        Absenteísmo e Jornada
+    </h5>
+
+    <div class="row g-2 mb-5">
+
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-clock-history me-2 text-danger"></i> Horas de Falta/Atraso</span>
+                        <i class="bi bi-info-circle text-primary"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Soma total de horas não trabalhadas no ano base"
+                           style="cursor: help;">
+                        </i>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0 text-danger">
+                        {{ total_horas_falta }}<span class="fs-4 text-muted">h</span>
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">Impacto direto na produtividade</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-person-exclamation me-2"></i> Média por Colaborador</span>
+                        <i class="bi bi-info-circle text-primary"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Total de Faltas dividido pelo número de colaboradores ativos"
+                           style="cursor: help;">
+                        </i>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
+                        {{ media_faltas_colab }}<span class="fs-4 text-muted">h</span>
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">Horas perdidas por pessoa no ano</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-lightning-charge-fill me-2 text-warning"></i> Horas Extras Totais</span>
+                        <i class="bi bi-info-circle text-primary"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Soma de todas as horas extras realizadas no ano base"
+                           style="cursor: help;">
+                        </i>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0 text-warning">
+                        {{ total_horas_extra }}<span class="fs-4 text-muted">h</span>
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">Custo adicional na folha</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
 </div>

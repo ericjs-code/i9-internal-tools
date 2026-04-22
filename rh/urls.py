@@ -17,5 +17,6 @@ urlpatterns = [
     path('pesquisa-demissional/responder/<uuid:uuid_pesquisa>/', views.responder_pesquisa, name='responder_pesquisa'),
     path('pesquisas/', views.listar_pesquisas, name='listar_pesquisas'),
     path('dashboard/', views.dashboard_rh, name='dashboard_rh'),
-    path('dashboard/importar/', views.importar_base_rh, name='importar_base_rh')
+    path('dashboard/importar/', views.importar_base_rh, name='importar_base_rh'),
+    path('dashboard/importar-ponto/', views.importar_ponto_rh, name='importar_ponto_rh')
 ]

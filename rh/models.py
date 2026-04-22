@@ -202,7 +202,36 @@ class Funcionario(models.Model):
     data_criacao = models.DateTimeField(auto_now_add=True)
     data_atualizacao = models.DateTimeField(auto_now=True)
 
+    matricula = models.CharField(max_length=20, unique=True, null=True, blank=True)
+
     def __str__(self):
         status = "Ativo" if self.situacao == "AT" else "Desligado"
         return f'{self.nome_completo} - {self.get_setor_display()} - ({status})'
+
+    def save(self, *args, **kwargs):
+        if self.cpf:
+            import re
+            self.cpf = re.sub(r'\D', '', self.cpf)
+        super().save(*args, **kwargs)
+
+
+class RegistroAbsenteismo(models.Model):
+    funcionario = models.ForeignKey(
+        Funcionario,
+        on_delete=models.CASCADE,
+        related_name='registros_ponto'
+    )
+
+    data_referencia = models.DateField()
+
+    horas_normais = models.DurationField(null=True, blank=True)
+    horas_falta = models.DurationField(null=True, blank=True)
+    horas_extras = models.DurationField(null=True, blank=True)
+    abono = models.DurationField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ['funcionario', 'data_referencia']
+
+    def __str__(self):
+        return f'Ponto: {self.funcionario.nome_completo} - {self.data_referencia.strftime("%m/%Y")}'
 

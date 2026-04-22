@@ -1,17 +1,20 @@
 import csv
-from django.db.models import Count, Case, When, Value, IntegerField, Q
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
-from django.shortcuts import render, redirect, get_object_or_404
+import pandas as pd
+from datetime import timedelta
 from django.utils import timezone
-from .models import Vaga, Candidatura, SolicitacaoVaga, PesquisaDemissional, Funcionario
+from django.contrib import messages
+from django.http import HttpResponse
+from core.decorators import exige_permissao
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404, render, redirect
+from django.db.models import Count, Case, When, Value, IntegerField, Q, Sum
+
+from core.utils.utils import converter_horas
+from .models import (Vaga, Candidatura, SolicitacaoVaga, PesquisaDemissional,
+                     Funcionario, RegistroAbsenteismo)
 from .forms import (CandidaturaForm, VagaForm, SolicitacaoVagaForm,
                     PesquisaDemissionalGeracaoForm, PesquisaDemissionalRespostaForm)
-from core.decorators import exige_permissao
-import pandas as pd
-from django.contrib import messages
-from django.shortcuts import render, redirect
+
 
 def portal_vagas(request):
     vagas = Vaga.objects.filter(ativa=True).order_by('-data_criacao')
@@ -302,6 +305,7 @@ def dashboard_rh(request):
     ano_atual = timezone.now().year
     data_inicio_ano = f"{ano_atual}-01-01"
 
+
     # ROTATIVIDADE (TURNOVER)
     total_distinto = Funcionario.objects.filter(
         data_demissao__isnull=True
@@ -327,17 +331,67 @@ def dashboard_rh(request):
     if media_colab > 0:
         turnover_geral = ((admissoes_ano + desligamentos_ano) / 2) / media_colab
 
-    funcionario_gestor = Funcionario.objects.filter(
-        Q(setor__exact='TI') | Q(setor__exact='Comercial')
+
+    # FUNIL DE CONTRATAÇÕES
+    # total de vagas criadas no ano
+    total_vagas = Vaga.objects.filter(
+        data_criacao__year=ano_atual
+    ).count()
+
+    # total de candidaturas recebidas no ano
+    cvs_recebidos = Candidatura.objects.filter(
+        data_aplicacao__year=ano_atual
+    ).count()
+
+    # Total de candidatos em processo
+    em_processo = Candidatura.objects.filter(
+        data_aplicacao__year=ano_atual,
+        status__in=[Candidatura.STATUS.EM_ANALISE, Candidatura.STATUS.ENTREVISTA]
+    ).count()
+
+    contratados = Candidatura.objects.filter(
+        data_aplicacao__year=ano_atual,
+        status=Candidatura.STATUS.APROVADO
+    ).count()
+
+    vagas_abertas = Vaga.objects.filter(
+        data_criacao__year=ano_atual,
+        ativa=True
+    ).count()
+
+
+    # ABSENTEÍSMO
+    registros_ponto_ano = RegistroAbsenteismo.objects.filter(data_referencia__year=ano_atual)
+
+    agregado_ponto = registros_ponto_ano.aggregate(
+        soma_faltas=Sum('horas_falta'),
+        soma_extras=Sum('horas_extras')
     )
+
+    tempo_faltas = agregado_ponto['soma_faltas']
+    total_horas_falta = int(tempo_faltas.total_seconds() / 3600) if tempo_faltas else 0
+
+    tempo_extras = agregado_ponto['soma_extras']
+    total_horas_extra =  int(tempo_extras.total_seconds() / 3600) if tempo_extras else 0
+
+    media_faltas_colab = round(total_horas_falta / total_distinto, 1) if total_distinto else 0
+
 
     context = {
         'ano': ano_atual,
         'total_funcionarios': total_distinto,
         'admissoes': admissoes_ano,
-        'desligamentos': desligamentos_ano,
+        'desligamento': desligamentos_ano,
         'colaboradores_inicio': colaboradores_inicio,
         'turnover_geral': round(turnover_geral * 100, 2),
+        'contratados': contratados,
+        'em_processo': em_processo,
+        'cvs_recebidos': cvs_recebidos,
+        'total_vagas': total_vagas,
+        'vagas_abertas': vagas_abertas,
+        'total_horas_falta': total_horas_falta,
+        'total_horas_extra': total_horas_extra,
+        'media_faltas_colab': media_faltas_colab,
     }
 
     return render(request, 'rh/dashboard.html', context)
@@ -362,12 +416,18 @@ def importar_base_rh(request):
             df = df.replace({pd.NA: None, float('nan'): None, 'NaT': None})
 
             df['Descrição Dpto'] = df['Descrição Dpto'].str.replace(' ', '_', regex=False).str.replace('-', '', regex=False)
-            df['Admissão'] = pd.to_datetime(df['Admissão'], format='%d/%m/%Y', errors='coerce')
-            df['Data Demissão'] = pd.to_datetime(df['Data Demissão'], format='%d/%m/%Y', errors='coerce')
+            df['Admissão'] = pd.to_datetime(df['Admissão'], errors='coerce', dayfirst=True)
+            df['Data Demissão'] = pd.to_datetime(df['Data Demissão'], errors='coerce', dayfirst=True)
             df['Admissão'] = df['Admissão'].dt.strftime('%Y-%m-%d')
             df['Data Demissão'] = df['Data Demissão'].dt.strftime('%Y-%m-%d')
-            df = df.replace({pd.NA: None, float('nan'): None, 'NaT': None})
-
+            df = df.replace({
+                pd.NA: None,
+                float('nan'): None,
+                'NaT': None,
+                'NaN': None,
+                'nan': None
+            })
+            df['CPF'] = df['CPF'].astype(str).str.replace(r'\D', '', regex=True)
             mapa_setor = {
                 'ADMINISTRATIVO': 'AD', 'COMERCIAL': 'CO', 'COMPRAS': 'CM',
                 'DIRETORIA': 'DI', 'FINANCEIRO': 'FI', 'OBRAS': 'OB',
@@ -375,15 +435,22 @@ def importar_base_rh(request):
                 'PRAF_INDUSTRIAL_LTDA': 'PR', 'PRODUÇÃO': 'PD', 'PROJETOS': 'PJ',
                 'RECURSOS_HUMANOS': 'RH', 'Sede_ADM': 'SA', 'TECNOLOGIA_DA_INFORMAÇAO': 'TI',
             }
-            mapa_situacao = {'Trabalhando': 'AT', 'Demitido': 'DM'}
 
             sucesso = 0
 
             for index, row in df.iterrows():
-                cpf_excel = str(row['CPF']).strip()
+                matricula_excel = str(row['Cód Epr']).strip()
+                if matricula_excel.lower() in ['nan', 'none', '']:
+                    matricula_excel = None
+                cpf_excel = str(row['CPF']).replace('.0', '').strip()
+                if not cpf_excel or cpf_excel.lower() in ['nan', 'none', '']:
+                    if matricula_excel:
+                        cpf_excel = f"SEM-CPF-{matricula_excel}"
+                    else:
+                        continue
                 nome_excel = row['Nome']
                 salario_excel = row['Salário']
-                situacao_excel = row['Situação']
+                situacao_excel = str(row['Situação']).strip().upper()
                 data_demissao_excel = row['Data Demissão']
                 grau_instrucao_excel = row['Grau instrução']
                 sexo_excel = row['Sexo']
@@ -391,7 +458,11 @@ def importar_base_rh(request):
                 desc_cargo_excel = row['Descrição cargo']
                 admissao = row['Admissão']
                 sigla_setor = mapa_setor.get(row['Descrição Dpto'], 'CA')
-                sigla_situacao = mapa_situacao.get(row['Situação'], 'AT')
+                sigla_situacao = ''
+                if situacao_excel == 'DEMITIDO':
+                    sigla_situacao = 'DM'
+                else:
+                    sigla_situacao = 'AT'
 
                 Funcionario.objects.update_or_create(
                     cpf=cpf_excel,
@@ -403,6 +474,7 @@ def importar_base_rh(request):
                         'data_demissao': data_demissao_excel if pd.notnull(data_demissao_excel) else None,
                         'cargo': desc_cargo_excel,
                         'salario': salario_excel,
+                        'matricula': str(row['Cód Epr']).strip()
                     }
                 )
 
@@ -416,3 +488,70 @@ def importar_base_rh(request):
             return redirect('importar_base_rh')
 
     return render(request, 'rh/importar_base.html')
+
+
+@login_required(login_url='/login/')
+@exige_permissao(['rh'])
+def importar_ponto_rh(request):
+
+    if request.method == 'POST':
+        arquivo = request.FILES.get('arquivo_csv')
+
+        data_referencia_form = request.POST.get('data_referencia')
+
+        if not arquivo or not data_referencia_form:
+            messages.error(request, 'Por favor, selecione o arquivo e a data de referência.')
+            return redirect('importar_ponto_rh')
+
+        # TODO 1: Valide se o arquivo termina com '.csv' (Se não, retorne um erro igual na outra view)
+        if not arquivo:
+            messages.error(request, 'Por favor, selecione um arquivo.')
+            return redirect('importar_ponto_rh')
+
+        if not arquivo.name.lower().endswith('.csv'):
+            messages.error(request, 'Formato inválido. Envie um arquivo CSV (.csv).')
+            return redirect('importar_ponto_rh')
+
+        try:
+            # TODO 2: Leia o CSV usando os mesmos parâmetros de sucesso que descobrimos no script
+            df =  pd.read_csv(arquivo, sep=',', encoding='utf-8-sig', dtype=str)
+            df.columns = df.columns.str.strip()
+            sucesso = 0
+            erros = 0
+
+            for index, row in df.iterrows():
+                matricula_excel = str(row['Cod Epr']).replace('.0', '').strip()
+
+                funcionario_obj = Funcionario.objects.filter(
+                    matricula=matricula_excel).first()  # Busca o funcionario no banco pela matricula
+                if not funcionario_obj:
+                    erros += 1
+                    continue
+
+                horas_normais_convertidas =converter_horas(row['Total Normais'])
+                horas_faltas_convertidas =converter_horas(row['Falta e Atraso'])
+                horas_extras_convertidas =converter_horas(row['Extra Diurna'])
+                abono_convertido =converter_horas(row['Abono'])
+
+                RegistroAbsenteismo.objects.update_or_create(
+                    funcionario=funcionario_obj,
+                    data_referencia=data_referencia_form,
+                    defaults={
+                        'horas_normais': horas_normais_convertidas,
+                        'horas_falta': horas_faltas_convertidas,
+                        'horas_extras': horas_extras_convertidas,
+                        'abono': abono_convertido
+                    }
+                )
+
+                sucesso += 1
+
+            messages.success(request,
+                             f'Ponto importado com sucesso! {sucesso} registros salvos. {erros} não encontrados.')
+            return redirect('dashboard_rh')
+
+        except Exception as e:
+            messages.error(request, f'Erro ao processar o ponto: {str(e)}')
+            return redirect('importar_ponto_rh')
+
+    return render(request, 'rh/importar_ponto.html')
