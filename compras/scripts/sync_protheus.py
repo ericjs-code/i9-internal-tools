@@ -6,8 +6,6 @@ from core.utils.sftp_client import baixar_arquivos_sftp
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
-EXCEL_PATH = os.path.join(DATA_DIR, 'report_SC_x_PC.xlsx')
-EXCEL_OPERACIONAL_PATH = os.path.join(DATA_DIR, 'report_operacional.xlsx')
 
 ARQUIVOS_COMPRAS = [
     'sc101011.sdb', 'sc701011.sdb',
@@ -101,7 +99,6 @@ def processar_dados():
         'DIAS_LEAD_FORNECEDOR': 'LeadTime_Fornecedor', 'DIAS_ATRASO_ENTREGA': 'Dias_Atraso_Entrega'
     }
 
-    # Formatação de datas em string
     df_merged['Emissao_SC'] = df_merged['DATA_SC_REAL'].dt.strftime('%d/%m/%Y')
     df_merged['Emissao_Pedido'] = df_merged['DATA_PEDIDO_REAL'].dt.strftime('%d/%m/%Y').fillna('-')
     df_merged['Data_Prev_Recebimento_Fisico'] = df_merged['DATA_PREV_RECEBIMENTO'].dt.strftime('%d/%m/%Y').fillna('-')
@@ -117,8 +114,8 @@ def processar_dados():
         if col in df_final.columns:
             df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0)
 
-    print(f"[3/4] Gerando arquivo Excel em: {EXCEL_PATH}")
-    df_final.to_excel(EXCEL_PATH, index=False, engine='openpyxl')
+    print("[3/4] Retornando dados do DW para a memória...")
+    return df_final
 
 def processar_dados_operacionais():
     print('[ETL OPERACIONAL] Processando base bottom-up...')
@@ -132,22 +129,19 @@ def processar_dados_operacionais():
     for df in [df_sc1, df_sc7, df_sa2, df_sd1, df_afg]:
         if 'D_E_L_E_T_' in df.columns:
             df.drop(df[df['D_E_L_E_T_'] == '*'].index, inplace=True)
-
         colunas_remover = [c for c in ['D_E_L_E_T_', 'R_E_C_N_O_', 'R_E_C_D_E_L_'] if c in df.columns]
         df.drop(columns=colunas_remover, inplace=True, errors='ignore')
         for col in df.columns:
             df[col] = df[col].str.strip()
 
-    # Tipagem rigorosa para quantidades e financeiro
     df_sd1['D1_QUANT'] = pd.to_numeric(df_sd1['D1_QUANT'], errors='coerce').fillna(0)
     df_sd1['D1_TOTAL'] = pd.to_numeric(df_sd1['D1_TOTAL'], errors='coerce').fillna(0)
     df_sc7['C7_QUANT'] = pd.to_numeric(df_sc7['C7_QUANT'], errors='coerce').fillna(0)
     df_sc1['C1_QUANT'] = pd.to_numeric(df_sc1['C1_QUANT'], errors='coerce').fillna(0)
 
-    # Notas Fiscais
     df_sd1_agg = df_sd1.groupby(['D1_FILIAL', 'D1_PEDIDO', 'D1_ITEMPC']).agg(
         QTD_RECEBIDA_TOTAL=('D1_QUANT', 'sum'),
-        VALOR_RECEBIDO_TOTAL=('D1_TOTAL', 'sum'),  # Soma Financeira
+        VALOR_RECEBIDO_TOTAL=('D1_TOTAL', 'sum'),
         NOTAS_FISCAIS=('D1_DOC', lambda x: ', '.join(x.dropna().unique())),
         DATA_ULTIMA_ENTREGA=('D1_DTDIGIT', 'max')
     ).reset_index()
@@ -159,7 +153,6 @@ def processar_dados_operacionais():
     df_sc7_sd1['QTD_RECEBIDA_TOTAL'] = df_sc7_sd1['QTD_RECEBIDA_TOTAL'].fillna(0)
     df_sc7_sd1['VALOR_RECEBIDO_TOTAL'] = df_sc7_sd1['VALOR_RECEBIDO_TOTAL'].fillna(0)
 
-    # Pedidos
     df_sc7_agg = df_sc7_sd1.groupby(['C7_FILIAL', 'C7_NUMSC', 'C7_ITEMSC']).agg(
         QTD_PEDIDA_TOTAL=('C7_QUANT', 'sum'),
         QTD_RECEBIDA_TOTAL=('QTD_RECEBIDA_TOTAL', 'sum'),
@@ -173,7 +166,6 @@ def processar_dados_operacionais():
         DATA_ULTIMA_ENTREGA=('DATA_ULTIMA_ENTREGA', 'max')
     ).reset_index()
 
-    # Base Final (Solicitações)
     df_op = pd.merge(df_sc1, df_sc7_agg, how='left',
                      left_on=['C1_FILIAL', 'C1_NUM', 'C1_ITEM'],
                      right_on=['C7_FILIAL', 'C7_NUMSC', 'C7_ITEMSC'])
@@ -182,7 +174,6 @@ def processar_dados_operacionais():
     df_op['QTD_RECEBIDA_TOTAL'] = df_op['QTD_RECEBIDA_TOTAL'].fillna(0).round(3)
     df_op['VALOR_RECEBIDO_TOTAL'] = df_op['VALOR_RECEBIDO_TOTAL'].fillna(0)
 
-    # Enriquecimento com Fornecedor e Projeto
     df_op = pd.merge(df_op, df_sa2, how='left', left_on=['COD_FORNECEDOR', 'LOJA_FORNECEDOR'],
                      right_on=['A2_COD', 'A2_LOJA'])
 
@@ -194,7 +185,6 @@ def processar_dados_operacionais():
     else:
         df_op['PROJETO_CODIGO'], df_op['AFG_TAREFA'] = '', ''
 
-    # REGRAS (Saldos e Status Limpo)
     df_op['SALDO_A_COMPRAR'] = (df_op['C1_QUANT'] - df_op['QTD_PEDIDA_TOTAL']).clip(lower=0)
     df_op['RESIDUO'] = (df_op['C1_QUANT'] - df_op['QTD_PEDIDA_TOTAL']).clip(lower=0).round(3)
 
@@ -209,7 +199,6 @@ def processar_dados_operacionais():
     resultados = ['PENDENTE COTAÇÃO', 'COMPRA PARCIAL', 'AGUARDANDO ENTREGA', 'ENTREGA PARCIAL', 'ATENDIDO TOTAL']
     df_op['STATUS_OPERACIONAL'] = np.select(condicoes, resultados, default='DESCONHECIDO')
 
-    # Datas
     def formatar_data(serie):
         return pd.to_datetime(serie, format='%Y%m%d', errors='coerce').dt.strftime('%d/%m/%Y').fillna('-')
 
@@ -218,7 +207,6 @@ def processar_dados_operacionais():
     df_op['PREVISAO_ENTREGA_FMT'] = formatar_data(df_op['PREVISAO_ENTREGA'])
     df_op['ENTREGA_REAL_FMT'] = formatar_data(df_op['DATA_ULTIMA_ENTREGA'])
 
-    # Mapa Único de Exportação
     mapa_colunas = {
         'C1_FILIAL': 'Filial', 'C1_NUM': 'Num_SC', 'C1_ITEM': 'Item_SC',
         'C1_PRODUTO': 'Cod_Produto', 'C1_DESCRI': 'Descricao',
@@ -233,11 +221,5 @@ def processar_dados_operacionais():
     }
 
     df_final = df_op.rename(columns=mapa_colunas)[list(mapa_colunas.values())]
-    print(f"[3.5/4] Gerando Excel Operacional em: {EXCEL_OPERACIONAL_PATH}")
-    df_final.to_excel(EXCEL_OPERACIONAL_PATH, index=False, engine='openpyxl')
-
-if __name__ == "__main__":
-    print("=== INICIANDO PIPELINE DE COMPRAS ===")
-    extrair_dados_compras()
-    processar_dados()
-    print("=== PIPELINE FINALIZADO ===")
+    print("[3.5/4] Retornando dados Operacionais para a memória...")
+    return df_final

@@ -15,7 +15,7 @@ from django.shortcuts import redirect, render
 from core.decorators import exige_permissao
 
 from .models import DataWarehouseCompras, OperacaoCompras
-from .scripts.sync_protheus import extrair_dados_compras
+from django.views.decorators.http import require_POST
 
 load_dotenv()
 
@@ -164,27 +164,26 @@ def dashboard_compras(request):
     return render(request, 'compras/dashboard.html', context)
 
 
+
 @login_required(login_url='/login/')
 @exige_permissao(['compras'])
+@require_POST
 def atualizar_dados_dw(request):
     """
     View acionada pelo botão do Dashboard.
     Executa os scripts de ETL e salva nos DOIS bancos de dados (Diretoria e Operação).
     """
-
     try:
-        # Importa os robôs e os caminhos
+        # Importa os robôs (Sem os EXCEL_PATH, pois não usamos mais disco)
         from compras.scripts.sync_protheus import (
-            extrair_dados_compras, processar_dados, processar_dados_operacionais,
-            EXCEL_PATH, EXCEL_OPERACIONAL_PATH
+            extrair_dados_compras, processar_dados, processar_dados_operacionais
         )
 
-        # Executa a extração e as DUAS transformações
+        # Executa a extração e as DUAS transformações (recebendo os DataFrames direto na RAM)
         extrair_dados_compras()
-        processar_dados()
-        processar_dados_operacionais()
+        df_dw = processar_dados()
+        df_op = processar_dados_operacionais()
 
-        df_dw = pd.read_excel(EXCEL_PATH)
         registros_dw = []
 
         def limpa_str(val):
@@ -231,8 +230,6 @@ def atualizar_dados_dw(request):
                 dias_atraso_entrega=limpa_int(row.get('Dias_Atraso_Entrega'))
             ))
 
-
-        df_op = pd.read_excel(EXCEL_OPERACIONAL_PATH)
         registros_op = []
 
         for index, row in df_op.iterrows():
@@ -259,13 +256,11 @@ def atualizar_dados_dw(request):
                 residuo=limpa_num(row.get('Residuo'))
             ))
 
-        # Injeção no Banco de Dados com Transação Atômica (O Maestro)
+        # Injeção no Banco de Dados com Transação Atômica
         with transaction.atomic():
-            # Limpa as duas gavetas
             DataWarehouseCompras.objects.all().delete()
             OperacaoCompras.objects.all().delete()
 
-            # Preenche as duas gavetas
             DataWarehouseCompras.objects.bulk_create(registros_dw, batch_size=2000)
             OperacaoCompras.objects.bulk_create(registros_op, batch_size=2000)
 

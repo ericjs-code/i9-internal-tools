@@ -26,10 +26,13 @@
             <i class="bi bi-list-check me-2"></i> Fila Operacional de Compras
         </h3>
         <div>
-            <a href="{% url 'atualizar_dados_dw' %}" class="btn btn-primary" onclick="mostrarCarregamento(this)">
-                <i class="bi bi-arrow-arrows-o" id="icone-sync"></i>
-                <span id="texto-sync">Sincronizar ERP</span>
-            </a>
+            <form method="POST" action="{% url 'atualizar_dados_dw' %}" onsubmit="mostrarCarregamento(this)">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-cloud-arrow-down-fill me-2" id="icone-sync"></i>
+                    <span id="texto-sync">Sincronizar com Protheus</span>
+                </button>
+            </form>
         </div>
     </div>
 
@@ -211,11 +214,18 @@
             </nav>
         </div>
 
-    </div> </div> <script>
-    function mostrarCarregamento(btn) {
-        btn.classList.add('disabled');
-        document.getElementById('icone-sync').className = 'spinner-border spinner-border-sm me-2';
-        document.getElementById('texto-sync').innerText = 'Sincronizando...';
-    }
-</script>
+    </div>
+</div>
+<script>
+        function mostrarCarregamento(form) {
+            const botao = form.querySelector("button");
+            const texto = form.querySelector("#texto-sync");
+            const icone = form.querySelector("#icone-sync");
+
+            texto.innerText = "Sincronizando...";
+            icone.classList.add("spinner-border", "spinner-border-sm");
+            icone.classList.remove("bi-cloud-arrow-down-fill");
+            botao.disabled = true;
+        }
+    </script>
 {% endblock %}
