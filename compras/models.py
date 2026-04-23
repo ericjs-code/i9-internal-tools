@@ -2,7 +2,7 @@ from django.db import models
 
 
 class DataWarehouseCompras(models.Model):
-    # Chaves e Identificadores
+    # Chaves
     filial = models.CharField(max_length=20, null=True, blank=True)
     num_sc = models.CharField(max_length=50, null=True, blank=True)
     cod_produto = models.CharField(max_length=100, null=True, blank=True)
