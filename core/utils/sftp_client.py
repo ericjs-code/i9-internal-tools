@@ -2,10 +2,6 @@ from dotenv import load_dotenv
 import paramiko
 import os
 
-import os
-import paramiko
-from dotenv import load_dotenv
-
 load_dotenv()
 
 SFTP_HOST = os.getenv('SFTP_HOST')
@@ -15,7 +11,7 @@ SFTP_PASS = os.getenv('SFTP_PASS')
 SFTP_REMOTE_DIR = os.getenv('SFTP_REMOTE_DIR')
 
 
-def baixar_arquivos_sftp(arquivos_alvo, diretorio_destino):
+def dowload_files_sftp(arquivos_alvo, diretorio_destino):
     """
     Função genérica para baixar arquivos via SFTP.
     :param arquivos_alvo: Lista de strings com os nomes dos arquivos (ex: ['sg1010.sdb'])

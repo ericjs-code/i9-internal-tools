@@ -76,7 +76,7 @@
                                 <span class="badge bg-primary rounded-pill px-3">{{ v.total_candidatos }}</span>
                             </td>
                             <td class="px-4 text-end">
-                                <a href="{% url 'triagem_rh' %}?vaga={{ v.id }}" class="btn btn-sm btn-light border text-primary fw-semibold me-1" title="Ver Candidatos">
+                                <a href="{% url 'candidate_screening' %}?vaga={{ v.id }}" class="btn btn-sm btn-light border text-primary fw-semibold me-1" title="Ver Candidatos">
                                     <i class="bi bi-people"></i>
                                 </a>
                                 <a href="{% url 'editar_vaga' v.id %}" class="btn btn-sm btn-outline-secondary fw-semibold">

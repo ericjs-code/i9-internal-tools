@@ -60,7 +60,7 @@
                         <td><span class="badge bg-light text-dark border">{{ c.vaga.titulo }}</span></td>
                         <td><span class="badge bg-secondary">{{ c.get_status_display }}</span></td>
                         <td class="text-end">
-                            <a href="{% url 'detalhe_candidato' c.id %}" class="btn btn-sm btn-outline-primary fw-bold">Avaliar</a>
+                            <a href="{% url 'candidate_datail' c.id %}" class="btn btn-sm btn-outline-primary fw-bold">Avaliar</a>
                         </td>
                     </tr>
                     {% empty %}

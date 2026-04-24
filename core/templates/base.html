@@ -182,18 +182,18 @@
                             </li>
 
                             <li class="nav-item">
-                                <a href="{% url 'portal_vagas' %}" target="_blank" class="nav-link submenu-link {% if 'vagas' in request.path %}active-sub{% endif %}" title="Abre em nova guia">
+                                <a href="{% url 'job_list' %}" target="_blank" class="nav-link submenu-link {% if 'vagas' in request.path %}active-sub{% endif %}" title="Abre em nova guia">
                                     <i class="bi bi-globe me-2"></i> Portal de Vagas
                                 </a>
                             </li>
 
                             <li class="nav-item">
-                                <a href="{% url 'gestao_vagas' %}" class="nav-link submenu-link {% if 'gestao' in request.path %}active-sub{% endif %}">
+                                <a href="{% url 'job_management' %}" class="nav-link submenu-link {% if 'gestao' in request.path %}active-sub{% endif %}">
                                     <i class="bi bi-briefcase me-2"></i> Gestão de Vagas
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="{% url 'triagem_rh' %}" class="nav-link submenu-link {% if 'painel' in request.path %}active-sub{% endif %}">
+                                <a href="{% url 'candidate_screening' %}" class="nav-link submenu-link {% if 'painel' in request.path %}active-sub{% endif %}">
                                     <i class="bi bi-funnel me-2"></i> Triagem (CVs)
                                 </a>
                             </li>

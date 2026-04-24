@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container-fluid">
 
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3">
         <div>
             <h2 class="fw-bold m-0" style="color: var(--azul-principal);">
                 BI - Recursos Humanos
@@ -13,16 +13,6 @@
         </div>
 
         <div class="d-flex flex-wrap align-items-center gap-2">
-            <div class="dropdown">
-                <button class="btn btn-secondary btn-sm dropdown-toggle d-flex align-items-center" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-calendar3 me-2"></i> Ano Base: {{ ano }}
-                </button>
-                <ul class="dropdown-menu shadow-sm">
-                    <li><a class="dropdown-item active" href="#">{{ ano }}</a></li>
-                    <li><a class="dropdown-item" href="#">2025</a></li>
-                </ul>
-            </div>
-
             <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
                 <i class="bi bi-file-earmark-pdf me-1"></i> Extrair Relatório
             </button>
@@ -40,9 +30,28 @@
             </a>
         </div>
     </div>
-    <h5 class="text-muted mb-3 text-uppercase" style="font-size: 0.85rem; letter-spacing: 1px;">
-        Indicadores de Rotatividade
-    </h5>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h5 class="text-muted mb-3 text-uppercase" style="font-size: 0.85rem; letter-spacing: 1px;">
+            Indicadores de Rotatividade
+        </h5>
+        <div class="dropdown">
+                <button class="btn btn-secondary btn-sm dropdown-toggle d-flex align-items-center" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-calendar3 me-2"></i> Ano Base: {{ ano }}
+                </button>
+                <ul class="dropdown-menu shadow-sm">
+                    <li>
+                        <a class="dropdown-item {% if ano == 2026 %}active{% endif %}" href="?ano=2026">2026</a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item {% if ano == 2025 %}active{% endif %}" href="?ano=2025">2025</a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item {% if ano == 2024 %}active{% endif %}" href="?ano=2024">2024</a>
+                    </li>
+                </ul>
+            </div>
+    </div>
+
 
     <div class="row g-2">
         <div class="col-12 col-md-3">
@@ -65,6 +74,26 @@
             </div>
         </div>
 
+        <div class="col-12 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-calendar-event me-2"></i> Colab. Início do Ano</span>
+                        <i class="bi bi-info-circle text-primary"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Admitidos antes do ano base e não demitidos até o início do ano"
+                           style="cursor: help;">
+                        </i>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
+                        {{ colaboradores_inicio }}
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">Em 01/01/{{ ano }}</p>
+                </div>
+            </div>
+        </div>
+
         <div class="col-12 col-md-2">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
@@ -81,26 +110,6 @@
                         {{ total_funcionarios }}
                     </h2>
                     <p class="text-muted small mt-2 mb-0">No quadro hoje</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-md-2">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-calendar-event me-2"></i> Colab. Início do Ano</span>
-                        <i class="bi bi-info-circle text-primary"
-                           data-bs-toggle="tooltip"
-                           data-bs-placement="top"
-                           title="Admitidos antes do ano base e não demitidos até o início do ano"
-                           style="cursor: help;">
-                        </i>
-                    </h6>
-                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
-                        {{ colaboradores_inicio }}
-                    </h2>
-                    <p class="text-muted small mt-2 mb-0">Em 01/01/{{ ano }}</p>
                 </div>
             </div>
         </div>
@@ -167,6 +176,20 @@
             </div>
         </div>
 
+        <div class="col-12 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-file-earmark-person me-2"></i> Candidatos em Processo </span>
+                    </h6>
+                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
+                        {{ em_processo }}
+                    </h2>
+                    <p class="text-muted small mt-2 mb-0">No quadro hoje</p>
+                </div>
+            </div>
+        </div>
+
         <div class="col-12 col-md-2">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
@@ -185,21 +208,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-file-earmark-person me-2"></i> Candidatos em Processo </span>
-                    </h6>
-                    <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
-                        {{ em_processo }}
-                    </h2>
-                    <p class="text-muted small mt-2 mb-0">No quadro hoje</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-md-2">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-file-earmark-person me-2"></i> Total Vagas Criadas</span>
+                        <span><i class="bi bi-file-earmark-person me-2"></i> Vagas Criadas</span>
                     </h6>
                     <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
                         {{ total_vagas }}
@@ -213,7 +222,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <h6 class="card-title text-muted fw-bold d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-file-earmark-person me-2"></i> Total Vagas Aberta </span>
+                        <span><i class="bi bi-file-earmark-person me-2"></i> Vagas Aberta </span>
                     </h6>
                     <h2 class="display-6 fw-bold mb-0" style="color: var(--laranja-principal);">
                         {{ vagas_abertas }}
@@ -225,9 +234,23 @@
     </div>
     <hr class="my-5 text-muted" style="opacity: 0.1;">
 
-    <h5 class="text-muted mb-3 text-uppercase" style="font-size: 0.85rem; letter-spacing: 1px;">
-        Absenteísmo e Jornada
-    </h5>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h5 class="text-muted mb-0 text-uppercase" style="font-size: 0.85rem; letter-spacing: 1px;">
+            Absenteísmo e Jornada
+        </h5>
+        <div class="dropdown">
+            <button class="btn btn-secondary btn-sm dropdown-toggle d-flex align-items-center" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-calendar-month me-2"></i>
+                {% if mes_atual == 0 %}Ano Inteiro{% else %}Mês {{ mes_atual }}{% endif %}
+            </button>
+            <ul class="dropdown-menu shadow-sm">
+                <li><a class="dropdown-item {% if mes_atual == 0 %}active{% endif %}" href="?ano={{ ano }}&mes=0">Ano Inteiro</a></li>
+                <li><a class="dropdown-item {% if mes_atual == 1 %}active{% endif %}" href="?ano={{ ano }}&mes=1">Janeiro</a></li>
+                <li><a class="dropdown-item {% if mes_atual == 2 %}active{% endif %}" href="?ano={{ ano }}&mes=2">Fevereiro</a></li>
+                <li><a class="dropdown-item {% if mes_atual == 3 %}active{% endif %}" href="?ano={{ ano }}&mes=3">Março</a></li>
+            </ul>
+        </div>
+    </div>
 
     <div class="row g-2 mb-5">
 

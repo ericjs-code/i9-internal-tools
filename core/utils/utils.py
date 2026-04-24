@@ -1,7 +1,7 @@
 import pandas as pd
 from datetime import timedelta
 
-def converter_horas(valor_excel):
+def convert_hours(valor_excel):
     if pd.isna(valor_excel) or str(valor_excel).strip() == '':
         return None
     try:
