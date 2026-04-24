@@ -14,7 +14,7 @@ from core.decorators import exige_permissao
 User = get_user_model()
 
 @login_required(login_url='/login/')
-@exige_permissao(['is_qualidade', 'is_diretoria'])
+@exige_permissao(['qualidade'])
 def dashboard_qualidade(request):
     locais_ativos = Local.objects.filter(ativo= True)
     equipamento_ativos = Equipamento.objects.filter(ativo= True)

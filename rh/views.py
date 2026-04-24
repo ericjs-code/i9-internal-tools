@@ -1,6 +1,5 @@
 import csv
 import pandas as pd
-from datetime import timedelta
 from django.utils import timezone
 from django.contrib import messages
 from django.http import HttpResponse
@@ -9,19 +8,19 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render, redirect
 from django.db.models import Count, Case, When, Value, IntegerField, Q, Sum
 
-from core.utils.utils import converter_horas
+from core.utils.utils import convert_hours
 from .models import (Vaga, Candidatura, SolicitacaoVaga, PesquisaDemissional,
                      Funcionario, RegistroAbsenteismo)
 from .forms import (CandidaturaForm, VagaForm, SolicitacaoVagaForm,
                     PesquisaDemissionalGeracaoForm, PesquisaDemissionalRespostaForm)
 
 
-def portal_vagas(request):
+def job_list(request):
     vagas = Vaga.objects.filter(ativa=True).order_by('-data_criacao')
-    return render(request, 'rh/portal_vagas.html', {'vagas': vagas})
+    return render(request, 'rh/job_list.html', {'vagas': vagas})
 
 
-def aplicar_vaga(request, pk):
+def job_apply(request, pk):
     vaga = get_object_or_404(Vaga, pk=pk, ativa=True)
 
     if request.method == 'POST':
@@ -33,16 +32,16 @@ def aplicar_vaga(request, pk):
             candidatura.save()
 
             messages.success(request, 'Currículo enviado com sucesso!')
-            return redirect('portal_vagas')
+            return redirect('job_list')
     else:
         form = CandidaturaForm()
 
-    return render(request, 'rh/aplicar_vaga.html', {'form': form, 'vaga': vaga})
+    return render(request, 'rh/job_apply.html', {'form': form, 'vaga': vaga})
 
 
 @login_required(login_url='/login/')
 @exige_permissao(['rh'])
-def triagem_rh(request):
+def candidate_screening(request):
     """
     Prepara a lista de candidatos e os contadores para a tela inicial do RH
     """
@@ -72,12 +71,12 @@ def triagem_rh(request):
         'total_entrevistas': contagens['total_entrevistas']
     }
 
-    return render(request, 'rh/triagem_rh.html', context)
+    return render(request, 'rh/candidate_screening.html', context)
 
 
-@login_required(login_url='/admin/login')
+@login_required(login_url='/login')
 @exige_permissao(['rh'])
-def detalhe_candidato(request, pk):
+def candidate_datail(request, pk):
     """
     Exibe o currículo de um candidato e permite o usuario mudar de fase (aprovar ou reprovar)
     o pk pe o id do candidato quem vem da url
@@ -97,14 +96,14 @@ def detalhe_candidato(request, pk):
 
         messages.success(request, f'Avaliação de {candidatura.nome_completo} atualizada.')
 
-        return redirect('detalhe_candidato', pk= candidatura.id)
+        return redirect('candidate_datail', pk= candidatura.id)
 
-    return render(request, 'rh/detalhe_candidato.html', {'candidatura': candidatura})
+    return render(request, 'rh/candidate_datail.html', {'candidatura': candidatura})
 
 
-@login_required(login_url='/admin/login')
+@login_required(login_url='/login')
 @exige_permissao(['rh', 'ti'])
-def gestao_vagas(request):
+def job_management(request):
     """
     Painel para o RH gerenciar as vagas abertas e fechadas. Usamos o annotate(count()) para o banco ja trazer a contagem
     de candidatos por vaga em uma unica query
@@ -119,11 +118,11 @@ def gestao_vagas(request):
         'vagas_abertas': vagas_abertas,
         'vagas_fechadas': vagas_fechadas
     }
-    return render(request, 'rh/gestao_vagas.html', context)
+    return render(request, 'rh/job_management.html', context)
 
 
 @login_required(login_url='/login/')
-def form_vaga(request, pk=None):
+def job_form(request, pk=None):
     if pk:
         vaga = get_object_or_404(Vaga, pk=pk)
         titulo_pagina = "Editar Vaga"
@@ -141,11 +140,11 @@ def form_vaga(request, pk=None):
 
             nova_vaga.save()
             messages.success(request, f"Vaga '{nova_vaga.titulo}' salva com sucesso!")
-            return redirect('gestao_vagas')
+            return redirect('job_management')
     else:
         form = VagaForm(instance=vaga)
 
-    return render(request, 'rh/form_vaga.html', {'form': form, 'titulo_pagina': titulo_pagina, 'vaga': vaga})
+    return render(request, 'rh/job_form.html', {'form': form, 'titulo_pagina': titulo_pagina, 'vaga': vaga})
 
 
 @login_required(login_url='/login/')
@@ -302,8 +301,18 @@ def responder_pesquisa(request, uuid_pesquisa):
 @login_required(login_url='/login/')
 @exige_permissao(['rh'])
 def dashboard_rh(request):
-    ano_atual = timezone.now().year
+    ano_atual_sistema = timezone.now().year
+    try:
+        ano_atual = int(request.GET.get('ano', ano_atual_sistema))
+    except ValueError:
+        ano_atual = ano_atual_sistema
+
     data_inicio_ano = f"{ano_atual}-01-01"
+
+    try:
+        mes_filtro = int(request.GET.get('mes', 0))
+    except ValueError:
+        mes_filtro = 0
 
 
     # ROTATIVIDADE (TURNOVER)
@@ -363,6 +372,9 @@ def dashboard_rh(request):
     # ABSENTEÍSMO
     registros_ponto_ano = RegistroAbsenteismo.objects.filter(data_referencia__year=ano_atual)
 
+    if mes_filtro > 0:
+        registros_ponto_query = registros_ponto_ano.filter(data_referencia__month=mes_filtro)
+
     agregado_ponto = registros_ponto_ano.aggregate(
         soma_faltas=Sum('horas_falta'),
         soma_extras=Sum('horas_extras')
@@ -378,6 +390,7 @@ def dashboard_rh(request):
 
 
     context = {
+        'mes_filtro': mes_filtro,
         'ano': ano_atual,
         'total_funcionarios': total_distinto,
         'admissoes': admissoes_ano,
@@ -528,10 +541,10 @@ def importar_ponto_rh(request):
                     erros += 1
                     continue
 
-                horas_normais_convertidas =converter_horas(row['Total Normais'])
-                horas_faltas_convertidas =converter_horas(row['Falta e Atraso'])
-                horas_extras_convertidas =converter_horas(row['Extra Diurna'])
-                abono_convertido =converter_horas(row['Abono'])
+                horas_normais_convertidas =convert_hours(row['Total Normais'])
+                horas_faltas_convertidas =convert_hours(row['Falta e Atraso'])
+                horas_extras_convertidas =convert_hours(row['Extra Diurna'])
+                abono_convertido =convert_hours(row['Abono'])
 
                 RegistroAbsenteismo.objects.update_or_create(
                     funcionario=funcionario_obj,

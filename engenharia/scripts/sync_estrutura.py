@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import sqlite3
-from core.utils.sftp_client import baixar_arquivos_sftp
+from core.utils.sftp_client import dowload_files_sftp
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
@@ -11,7 +11,7 @@ ARQUIVOS_ALVOS = ['sg10101.sdb', 'sb10101.sdb']
 
 
 def extrair_dados_engenharia():
-    baixar_arquivos_sftp(arquivos_alvo=ARQUIVOS_ALVOS, diretorio_destino=DATA_DIR)
+    dowload_files_sftp(arquivos_alvo=ARQUIVOS_ALVOS, diretorio_destino=DATA_DIR)
 
 
 def ler_tabelas(nome_arquivo):
