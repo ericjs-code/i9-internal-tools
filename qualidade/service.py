@@ -161,4 +161,37 @@ class RNCService:
             except Exception as e:
                 print(f'Erro ao enviar email da RNC {rnc.id}: {e}')
 
+    @staticmethod
+    def notificar_alerta_vencimento(rnc_id, dias_restantes):
+        rnc = RNC.objects.get(id=rnc_id)
+        emails = [resp.email for resp in rnc.responsaveis.all() if resp.email]
+
+        if emails:
+            nome_equipamento = rnc.equipamento.nome if rnc.equipamento else "Não informado"
+            codigo_projeto = rnc.projeto_cod if rnc.projeto_cod else "Não informado"
+
+            termo_dia = "AMANHÃ" if dias_restantes == 1 else f"em {dias_restantes} dias"
+
+            email_alerta = (
+                f"Atenção! A data de previsão de encerramento da RNC vence {termo_dia}.\n\n"
+                f"Clique aqui para acessar: https://inovetmg.pythonanywhere.com/login/ \n\n"
+                f"DETALHES DA RNC:\n"
+                f"- ID: {rnc.id}\n"
+                f"- Equipamento: {nome_equipamento}\n"
+                f"- Projeto: {codigo_projeto}\n"
+                f"- Descrição: {rnc.descricao}\n\n"
+                f"Data Limite: {rnc.data_prevista_conclusao.strftime('%d/%m/%Y')}\n"
+            )
+
+            try:
+                send_mail(
+                    subject=f'[SGQ] ALERTA DE VENCIMENTO ({termo_dia}) - RNC #{rnc.id}',
+                    message=email_alerta,
+                    from_email=settings.EMAIL_HOST_USER,
+                    recipient_list=emails,
+                    fail_silently=False
+                )
+            except Exception as e:
+                print(f'Erro ao enviar email da RNC {rnc.id}: {e}')
+
 

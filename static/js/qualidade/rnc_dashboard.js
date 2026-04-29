@@ -7,6 +7,7 @@ const RNCDashboard = (function() {
     let choicesResp = null;
     const CONFIG = window.RNC_CONFIG;
 
+
     // FUNÇÕES UTILITÁRIAS
     const util = {
         formatarDataBR: function(cell){
@@ -43,6 +44,7 @@ const RNCDashboard = (function() {
         }
     };
 
+
     // MÉTODOS DE INICIALIZAÇÃO
     const initChoices = function() {
         if(document.getElementById('edit_responsaveis')){
@@ -57,6 +59,8 @@ const RNCDashboard = (function() {
         }
     };
 
+
+    // TABULATOR
     const initTabulator = function() {
         table = new Tabulator("#tabela-rnc", {
             ajaxURL: CONFIG.urls.listar,
@@ -176,7 +180,20 @@ const RNCDashboard = (function() {
                 }},
                 {title: "Evidência Eficácia PDF", download: false, field: "eficacia_pdf", formatter: function(cell){
                     let url = cell.getValue();
-                    if(url) return `<a href="${url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" style="font-size: 0.75rem;"><i class="bi bi-file-pdf"></i> PDF</a>`;
+                    let rncId = cell.getRow().getData().id;
+                    if(url) {
+                        return `
+                            <div class="d-flex gap-1 justify-content-center">
+                                <a href="${url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" title="Ver PDF" style="font-size: 0.75rem;">
+                                    <i class="bi bi-file-pdf"></i> PDF
+                                </a>
+                                <button type="button" class="btn btn-sm btn-danger py-0" title="Excluir PDF" style="font-size: 0.75rem;" 
+                                        onclick="RNCDashboard.api.deletarMidia('pdf', ${rncId}, ${rncId}, this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    }
                     return "-";
                 }},
                 {title: "Evidência Eficácia (Img)", download: false, field: "qtd_imagens_eficacia", hozAlign: "center", formatter: function(cell){
@@ -200,6 +217,7 @@ const RNCDashboard = (function() {
 
         table.on("cellEdited", api.atualizarInline);
     };
+
 
     //CAMADA DE API (FETCH)
     const api = {
@@ -280,8 +298,56 @@ const RNCDashboard = (function() {
                 btnSalvar.innerHTML = textoOriginal;
                 btnSalvar.disabled = false;
             });
+        },
+
+        deletarMidia: function(tipo, midiaId, rncId, btnElement) {
+            // 🟢 A Mágica do SweetAlert2
+            Swal.fire({
+                title: 'Excluir Evidência?',
+                text: "Essa ação apagará o arquivo do servidor e não poderá ser desfeita!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545', // Vermelho Bootstrap
+                cancelButtonColor: '#6c757d', // Cinza Bootstrap
+                confirmButtonText: '<i class="bi bi-trash"></i> Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+
+                    btnElement.disabled = true;
+                    let conteudoOriginal = btnElement.innerHTML;
+                    btnElement.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+                    // O Fetch dispara
+                    fetch(`/qualidade/api/rncs/midia/${tipo}/${midiaId}/deletar/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CONFIG.tokens.csrf }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.status === 'sucesso') {
+                            let modalGaleria = bootstrap.Modal.getInstance(document.getElementById('modalGaleriaImagens'));
+                            if(modalGaleria && tipo !== 'pdf') modalGaleria.hide();
+
+                            table.setData();
+
+
+                            Swal.fire('Excluído!', 'O arquivo foi removido com sucesso.', 'success');
+                        } else {
+                            Swal.fire('Erro!', data.mensagem, 'error');
+                            btnElement.disabled = false;
+                            btnElement.innerHTML = conteudoOriginal;
+                        }
+                    }).catch(error => {
+                        Swal.fire('Erro!', 'Falha de comunicação com o servidor.', 'error');
+                        btnElement.disabled = false;
+                        btnElement.innerHTML = conteudoOriginal;
+                    });
+                }
+            });
         }
     };
+
 
     // INTERFACE DE USUÁRIO (Modais)
     const ui = {
@@ -329,8 +395,40 @@ const RNCDashboard = (function() {
                     </div>`;
             });
             new bootstrap.Modal(document.getElementById('modalGaleriaImagens')).show();
+        },
+
+        abrirGaleriaImagens: function(dados, tipo) {
+            let containerGaleria = document.getElementById('galeria_content');
+            containerGaleria.innerHTML = '';
+
+            let imagensArray = tipo === 'eficacia' ? (dados.eficacia_imagens_dados || []) : (dados.imagens_dados || []);
+            let tituloModal = document.querySelector('#modalGaleriaImagens .modal-title');
+
+            if (tipo === 'eficacia') {
+                tituloModal.innerHTML = '<i class="bi bi-shield-check me-2"></i>Evidências de Eficácia';
+            } else {
+                tituloModal.innerHTML = '<i class="bi bi-images me-2"></i>Evidências Fotográficas da Falha';
+            }
+
+            imagensArray.forEach(imgObj => {
+                containerGaleria.innerHTML += `
+                    <div class="col-md-4 position-relative">
+                        <button type="button" 
+                                class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2 shadow" 
+                                title="Excluir Evidência"
+                                onclick="RNCDashboard.api.deletarMidia('${tipo}', ${imgObj.id}, ${dados.id}, this)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        
+                        <a href="${imgObj.url}" target="_blank">
+                            <img src="${imgObj.url}" class="img-fluid img-thumbnail shadow-sm rounded-2" style="max-height: 200px; width: 100%; object-fit: cover;">
+                        </a>
+                    </div>`;
+            });
+            new bootstrap.Modal(document.getElementById('modalGaleriaImagens')).show();
         }
     };
+
 
     // INICIALIZADOR PÚBLICO
     return {
@@ -379,7 +477,8 @@ const RNCDashboard = (function() {
                 });
             }
 
-        }
+        },
+        api:api
     };
 })();
 

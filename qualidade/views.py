@@ -48,8 +48,8 @@ def api_listar_rncs(request):
     data = []
     for rnc in rncs:
         nomes_responsaveis = ", ".join([resp.get_full_name() or resp.username for resp in rnc.responsaveis.all()])
-        imagens_urls = [img.imagem.url for img in rnc.imagens.all() if img.imagem]
-        imagens_eficacia_urls = [img.imagens_eficacia.url for img in rnc.eficacia_imagens.all() if img.imagens_eficacia]
+        imagens_dados = [{'id': img.id, 'url': img.imagem.url} for img in rnc.imagens.all() if img.imagem]
+        eficacia_imagens_dados = [{'id': img.id, 'url': img.imagens_eficacia.url} for img in rnc.eficacia_imagens.all()if img.imagens_eficacia]
 
         data.append({
             'id': rnc.id,
@@ -76,12 +76,12 @@ def api_listar_rncs(request):
             'acao_corretiva': rnc.acao_corretiva or '',
             'eficacia_texto': rnc.eficacia_texto or '',
             'eficacia_pdf': rnc.eficacia_pdf.url if rnc.eficacia_pdf else '',
-            'qtd_imagens': len(imagens_urls),
-            'primeira_imagem_url': imagens_urls[0] if imagens_urls else '',
-            'imagens_urls': imagens_urls,
-            'eficacia_imagens_urls': imagens_eficacia_urls,
-            'qtd_imagens_eficacia': len(imagens_eficacia_urls),
-            'primeira_imagem_eficacia_url': imagens_eficacia_urls[0] if imagens_eficacia_urls else '',
+            'qtd_imagens': len(imagens_dados),
+            'primeira_imagem_url': imagens_dados[0] if imagens_dados else '',
+            'imagens_dados': imagens_dados,
+            'eficacia_imagens_dados': eficacia_imagens_dados,
+            'qtd_imagens_eficacia': len(eficacia_imagens_dados),
+            'primeira_imagem_eficacia_url': eficacia_imagens_dados[0] if eficacia_imagens_dados else '',
             'status_code': rnc.status,
             'categoria_code': rnc.categoria,
             'origem_code': rnc.origem,
@@ -171,7 +171,7 @@ def api_editar_rnc_avancado(request, rnc_id):
         for campo in campos_proibidos:
             dados.pop(campo, None)
 
-    serializer = RNCSerializer(instance=rnc, data=request.dados, partial=True)
+    serializer = RNCSerializer(instance=rnc, data=dados, partial=True)
 
     if serializer.is_valid():
         rnc_atualizada = serializer.save()
@@ -193,3 +193,31 @@ def api_editar_rnc_avancado(request, rnc_id):
         return Response({'status': 'sucesso'})
     else:
         return Response({'status': 'erro', 'mensagem': serializer.errors}, status=400)
+
+
+@login_required(login_url='/login/')
+@require_POST
+def api_deletar_midia_rnc(request, tipo, midia_id):
+    try:
+        if tipo == 'padrao':
+            midia = get_object_or_404(RNCImagem, id=midia_id)
+            if midia.imagem:
+                midia.imagem.delete(save=False)
+            midia.delete()
+
+        elif tipo == 'eficacia':
+            midia_eficacia = get_object_or_404(RNCEficaciaImagem, id=midia_id)
+            if midia_eficacia.imagens_eficacia:
+                midia_eficacia.imagens_eficacia.delete(save=False)
+            midia_eficacia.delete()
+
+        elif tipo == 'pdf':
+            rnc = get_object_or_404(RNC, id=midia_id)
+            if rnc.eficacia_pdf:
+                rnc.eficacia_pdf.delete(save=False)
+                rnc.eficacia_pdf = None
+                rnc.save(update_fields=['eficacia_pdf'])
+
+        return JsonResponse({'status': 'sucesso'})
+    except Exception as e:
+        return JsonResponse({'status': 'erro', 'mensagem': str(e)}, status=500)
