@@ -164,3 +164,6 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 
 WIDGET_ERROR_CLASS = 'is-invalid'
+
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
