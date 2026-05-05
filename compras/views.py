@@ -3,12 +3,12 @@ import csv
 import json
 from datetime import datetime
 from dotenv import load_dotenv
+from django.core.cache import cache
+from celery.result import AsyncResult
 
-import pandas as pd
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
@@ -16,6 +16,9 @@ from core.decorators import exige_permissao
 
 from .models import DataWarehouseCompras, OperacaoCompras
 from django.views.decorators.http import require_POST
+
+from .services import gerar_csv_operacoes_compras, gerar_csv_gerencial_compras
+from .task import task_sincronizar_protheus
 
 load_dotenv()
 
@@ -52,33 +55,8 @@ def dashboard_compras(request):
 
     # Exportação CSV
     if exportar_csv == '1':
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="base_completa_compras.csv"'
-        response.write(u'\ufeff'.encode('utf8'))
+        return gerar_csv_gerencial_compras(pedidos_efetivados)
 
-        writer = csv.writer(response, delimiter=';')
-        writer.writerow([
-            'Filial', 'Num_SC', 'Emissao_SC', 'Cod_Produto', 'Descricao',
-            'Projeto_Cod', 'Tarefa_Cod', 'Num_Pedido', 'Emissao_Pedido',
-            'Data_Prev_Recebimento_Fisico', 'Data_Recebimento_Real', 'Cod_Fornecedor',
-            'Nome_Fornecedor', 'Status', 'Qtd_Solicitada', 'Qtd_Pedido', 'Qtd_Recebida',
-            'Valor_Unitario', 'Valor_Total', 'LeadTime_Compras',
-            'LeadTime_Fornecedor', 'Dias_Atraso_Entrega'
-        ])
-
-        def formata_dt(data_obj):
-            return data_obj.strftime('%d/%m/%Y') if data_obj else '-'
-
-        for obj in pedidos_efetivados:
-            writer.writerow([
-                obj.filial, obj.num_sc, formata_dt(obj.emissao_sc), obj.cod_produto, obj.descricao,
-                obj.projeto_cod, obj.tarefa_cod, obj.num_pedido, formata_dt(obj.emissao_pedido),
-                formata_dt(obj.data_prev_recebimento_fisico), formata_dt(obj.data_recebimento_real),
-                obj.cod_fornecedor, obj.nome_fornecedor, obj.status, obj.qtd_solicitada,
-                obj.qtd_pedido, obj.qtd_recebida, obj.valor_unitario, obj.valor_total,
-                obj.leadtime_compras, obj.leadtime_fornecedor, obj.dias_atraso_entrega
-            ])
-        return response
 
     # KPIs Principais
     spend_total = pedidos_efetivados.aggregate(total=Sum('valor_total'))['total'] or 0.0
@@ -164,215 +142,37 @@ def dashboard_compras(request):
     return render(request, 'compras/dashboard.html', context)
 
 
-
-@login_required(login_url='/login/')
-@exige_permissao(['compras'])
-@require_POST
-def atualizar_dados_dw(request):
-    """
-    View acionada pelo botão do Dashboard.
-    Executa os scripts de ETL e salva nos DOIS bancos de dados (Diretoria e Operação).
-    """
-    try:
-        # Importa os robôs (Sem os EXCEL_PATH, pois não usamos mais disco)
-        from compras.scripts.sync_protheus import (
-            extrair_dados_compras, processar_dados, processar_dados_operacionais
-        )
-
-        # Executa a extração e as DUAS transformações (recebendo os DataFrames direto na RAM)
-        extrair_dados_compras()
-        df_dw = processar_dados()
-        df_op = processar_dados_operacionais()
-
-        registros_dw = []
-
-        def limpa_str(val):
-            return str(val).strip() if pd.notna(val) else ''
-
-        def limpa_num(val):
-            return float(val) if pd.notna(val) else 0.0
-
-        def limpa_int(val):
-            return int(val) if pd.notna(val) else 0
-
-        def limpa_data(val):
-            val_str = str(val).strip()
-            if val_str and val_str not in ['-', 'nan', 'NaT']:
-                try:
-                    return datetime.strptime(val_str, '%d/%m/%Y').date()
-                except ValueError:
-                    return None
-            return None
-
-        for index, row in df_dw.iterrows():
-            registros_dw.append(DataWarehouseCompras(
-                filial=limpa_str(row.get('Filial')),
-                num_sc=limpa_str(row.get('Num_SC')),
-                cod_produto=limpa_str(row.get('Cod_Produto')),
-                descricao=limpa_str(row.get('Descricao')),
-                projeto_cod=limpa_str(row.get('Projeto_Cod')),
-                tarefa_cod=limpa_str(row.get('Tarefa_Cod')),
-                num_pedido=limpa_str(row.get('Num_Pedido')),
-                cod_fornecedor=limpa_str(row.get('Cod_Fornecedor')),
-                nome_fornecedor=limpa_str(row.get('Nome_Fornecedor')),
-                status=limpa_str(row.get('Status')),
-                emissao_sc=limpa_data(row.get('Emissao_SC')),
-                emissao_pedido=limpa_data(row.get('Emissao_Pedido')),
-                data_prev_recebimento_fisico=limpa_data(row.get('Data_Prev_Recebimento_Fisico')),
-                data_recebimento_real=limpa_data(row.get('Data_Recebimento_Real')),
-                qtd_solicitada=limpa_num(row.get('Qtd_Solicitada')),
-                qtd_pedido=limpa_num(row.get('Qtd_Pedido')),
-                qtd_recebida=limpa_num(row.get('Qtd_Recebida')),
-                valor_unitario=limpa_num(row.get('Valor_Unitario')),
-                valor_total=limpa_num(row.get('Valor_Total')),
-                leadtime_compras=limpa_int(row.get('LeadTime_Compras')),
-                leadtime_fornecedor=limpa_int(row.get('LeadTime_Fornecedor')),
-                dias_atraso_entrega=limpa_int(row.get('Dias_Atraso_Entrega'))
-            ))
-
-        registros_op = []
-
-        for index, row in df_op.iterrows():
-            registros_op.append(OperacaoCompras(
-                filial=limpa_str(row.get('Filial')),
-                num_sc=limpa_str(row.get('Num_SC')),
-                item_sc=limpa_str(row.get('Item_SC')),
-                cod_produto=limpa_str(row.get('Cod_Produto')),
-                descricao=limpa_str(row.get('Descricao')),
-                projeto_cod=limpa_str(row.get('Projeto_Cod')),
-                tarefa_cod=limpa_str(row.get('Tarefa_Cod')),
-                num_pedidos_vinculados=limpa_str(row.get('Num_Pedidos_Vinculados')),
-                notas_fiscais=limpa_str(row.get('Notas_Fiscais')),
-                nome_fornecedor=limpa_str(row.get('Nome_Fornecedor')),
-                status_operacional=limpa_str(row.get('Status_Operacional')),
-                emissao_sc=limpa_data(row.get('Emissao_SC')),
-                emissao_ultimo_pedido=limpa_data(row.get('Emissao_Ultimo_Pedido')),
-                previsao_entrega=limpa_data(row.get('Previsao_Entrega')),
-                ultima_entrega_real=limpa_data(row.get('Ultima_Entrega_Real')),
-                qtd_solicitada=limpa_num(row.get('Qtd_Solicitada')),
-                qtd_pedida=limpa_num(row.get('Qtd_Pedida')),
-                qtd_recebida=limpa_num(row.get('Qtd_Recebida')),
-                saldo_a_comprar=limpa_num(row.get('Saldo_A_Comprar')),
-                residuo=limpa_num(row.get('Residuo'))
-            ))
-
-        # Injeção no Banco de Dados com Transação Atômica
-        with transaction.atomic():
-            DataWarehouseCompras.objects.all().delete()
-            OperacaoCompras.objects.all().delete()
-
-            DataWarehouseCompras.objects.bulk_create(registros_dw, batch_size=2000)
-            OperacaoCompras.objects.bulk_create(registros_op, batch_size=2000)
-
-        messages.success(request,
-                         f"Sincronização concluída! Diretoria: {len(registros_dw)} | Operação: {len(registros_op)} registros atualizados.")
-
-    except Exception as e:
-        messages.error(request, f"Falha na sincronização: {str(e)}")
-
-    referer = request.META.get('HTTP_REFERER')
-    if referer:
-        return redirect(referer)
-    else:
-        return redirect('dashboard_compras')
-
-
 @login_required(login_url='/login/')
 @exige_permissao(['compras'])
 def dashboard_operacional(request):
-    """Dashboard focado na operação compras"""
-    # Busca todos os dados operacionais
-    operacoes = OperacaoCompras.objects.all()
-
-    # Filtros simples
-    projeto_filtros = request.GET.get('projeto')
-    status_filtro = request.GET.get('status')
-
-    if projeto_filtros:
-        operacoes = operacoes.filter(projeto_cod=projeto_filtros)
-    if status_filtro:
-        operacoes = operacoes.filter(status_operacional=status_filtro)
-
-    # KPIS
-    kpis = {
-        'pendentes_cotação': operacoes.filter(status_operacional='PENDENTE_COTAÇÃO'),
-        'compras_parciais': operacoes.filter(status_operacional='COMPRAS_PARCIAIS'),
-        'entregas_parciais': operacoes.filter(status_operacional= 'ENTREGA PARCIAL'),
-        'aguardando_entrega': operacoes.filter(status_operacional='AGUARDANDO_ENTREGA')
-    }
-
-    lista_projetos = OperacaoCompras.objects.exclude(projeto_cod='').values_list('projeto_cod', flat=True).distinct().order_by('projeto_cod')
-    lista_status = OperacaoCompras.objects.exclude(status_operacional='').values_list('status_operacional',flat=True).distinct().order_by('status_operacional')
-
-
-    context = {
-        'operacoes': operacoes,
-        'kpis': kpis,
-        'lista_projetos': lista_projetos,
-        'lista_status': lista_status,
-    }
-
     """
     Dashboard focado na operação (Compradores).
     Traz os dados agregados da OperacaoCompras para acompanhamento de filas e parciais.
     """
+    # Busca Base Ordenada (Garante paginação correta)
+    operacoes = OperacaoCompras.objects.all().order_by('-emissao_sc', 'num_sc')
 
-    # Busca
-    operacoes = OperacaoCompras.objects.all()
-
-    # Filtros
+    # Captura de Parâmetros
     projeto_filtro = request.GET.get('projeto')
     status_filtro = request.GET.get('status')
     pedido_filtro = request.GET.get('pedido')
     nota_filtro = request.GET.get('nota')
+
     sc_filtro = request.GET.get('num_sc')
     fornecedor_filtro = request.GET.get('nome_fornecedor')
     exportar_csv = request.GET.get('export_csv')
 
-    if projeto_filtro:
-        operacoes = operacoes.filter(projeto_cod=projeto_filtro)
-    if status_filtro:
-        operacoes = operacoes.filter(status_operacional=status_filtro)
-    if pedido_filtro:
-        operacoes = operacoes.filter(num_pedidos_vinculados=pedido_filtro)
-    if nota_filtro:
-        operacoes = operacoes.filter(notas_fiscais=nota_filtro)
-    if sc_filtro:
-        operacoes = operacoes.filter(num_sc=sc_filtro)
-    if fornecedor_filtro:
-        operacoes = operacoes.filter(nome_fornecedor__icontains=fornecedor_filtro)
+    # Aplicação de Filtros
+    if projeto_filtro: operacoes = operacoes.filter(projeto_cod=projeto_filtro)
+    if status_filtro: operacoes = operacoes.filter(status_operacional=status_filtro)
+    if pedido_filtro: operacoes = operacoes.filter(num_pedidos_vinculados=pedido_filtro)
+    if nota_filtro: operacoes = operacoes.filter(notas_fiscais=nota_filtro)
+    if sc_filtro: operacoes = operacoes.filter(num_sc=sc_filtro)
+    if fornecedor_filtro: operacoes = operacoes.filter(nome_fornecedor__icontains=fornecedor_filtro)
 
+    # Exportação CSV
     if exportar_csv == '1':
-        import csv
-        from django.http import HttpResponse
-
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="fila_operacional_compras.csv"'
-        response.write(u'\ufeff'.encode('utf8'))
-
-        writer = csv.writer(response, delimiter=';')
-
-        # Cabeçalho do Excel
-        writer.writerow([
-            'SC', 'Item', 'Produto', 'Descricao', 'Projeto', 'Tarefa',
-            'Fornecedor', 'Status',
-            'Emissao SC',
-            'Qtd Solicitada', 'Qtd Comprada', 'Qtd Entregue', 'Resíduo'
-        ])
-
-        def formata_dt(data_obj):
-            return data_obj.strftime('%d/%m/%Y') if data_obj else '-'
-
-        # Linhas de Dados
-        for op in operacoes:
-            writer.writerow([
-                op.num_sc, op.item_sc, op.cod_produto, op.descricao, op.projeto_cod, op.tarefa_cod,
-                op.nome_fornecedor, op.status_operacional,
-                formata_dt(op.emissao_sc),
-                op.qtd_solicitada, op.qtd_pedida, op.qtd_recebida, op.residuo
-            ])
-
-        return response
+        return gerar_csv_operacoes_compras(operacoes)
 
     # KPIs
     kpis = {
@@ -382,12 +182,12 @@ def dashboard_operacional(request):
         'aguardando_entrega': operacoes.filter(status_operacional='AGUARDANDO ENTREGA').count(),
     }
 
-    # Listas do Filtro
+    #  Listas do Filtro
     lista_projetos = OperacaoCompras.objects.exclude(projeto_cod='').values_list('projeto_cod', flat=True).distinct().order_by('projeto_cod')
     lista_status = OperacaoCompras.objects.exclude(status_operacional='').values_list('status_operacional', flat=True).distinct().order_by('status_operacional')
 
+    # Paginação
     paginator = Paginator(operacoes, 50)
-
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
@@ -396,7 +196,6 @@ def dashboard_operacional(request):
         del query_params['page']
     url_filtros = query_params.urlencode()
 
-    # Contexto
     context = {
         'operacoes': page_obj,
         'kpis': kpis,
@@ -404,13 +203,43 @@ def dashboard_operacional(request):
         'lista_status': lista_status,
         'url_filtros': url_filtros,
         'filtros': {
-            'projeto': projeto_filtro,
-            'status': status_filtro,
-            'pedido': pedido_filtro,
-            'nota': nota_filtro,
-            'num_sc': sc_filtro,
-            'nome_fornecedor': fornecedor_filtro,
+            'projeto': projeto_filtro, 'status': status_filtro, 'pedido': pedido_filtro,
+            'nota': nota_filtro, 'num_sc': sc_filtro, 'nome_fornecedor': fornecedor_filtro,
         }
     }
 
     return render(request, 'compras/dashboard_operacional.html', context)
+
+
+@login_required(login_url='/login/')
+@exige_permissao(['compras'])
+@require_POST
+def atualizar_dados_dw(request):
+    if cache.get('lock_sync_compras'):
+        return JsonResponse({
+            "status": "locked",
+            "message": "Sincronização já em andamento."
+        })
+
+    cache.set('lock_sync_compras', True, timeout=600)
+
+    # Dispara a task assíncrona
+    task = task_sincronizar_protheus.delay()
+
+    return JsonResponse({
+        "status": "processing",
+        "task_id": task.id,
+        "message": "Sincronização iniciada em segundo plano."
+    })
+
+
+@login_required(login_url='/login/')
+def checar_status_sync(request, task_id):
+    """
+    Rota chamada via AJAX pelo frontend para checar se o Celery terminou.
+    """
+    task_result = AsyncResult(task_id)
+    return JsonResponse({
+        "status": task_result.status,
+        "result": task_result.result if task_result.ready() else None
+    })

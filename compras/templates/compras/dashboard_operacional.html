@@ -105,8 +105,6 @@
 
 
             <div class="col-md-auto ms-auto d-flex gap-2">
-
-            <div class="col-md-auto ms-auto d-flex gap-2">
                 <button type="submit" class="btn btn-sm btn-primary px-3">
                     <i class="bi bi-funnel me-1"></i> Filtrar
                 </button>
@@ -180,7 +178,8 @@
                 </tbody>
             </table>
         </div>
-        </div> <div class="d-flex justify-content-between align-items-center mt-3">
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
             <span class="text-muted small">
                 Mostrando {{ operacoes.start_index }} a {{ operacoes.end_index }} de {{ operacoes.paginator.count }} registros.
             </span>
@@ -216,16 +215,9 @@
 
     </div>
 </div>
-<script>
-        function mostrarCarregamento(form) {
-            const botao = form.querySelector("button");
-            const texto = form.querySelector("#texto-sync");
-            const icone = form.querySelector("#icone-sync");
 
-            texto.innerText = "Sincronizando...";
-            icone.classList.add("spinner-border", "spinner-border-sm");
-            icone.classList.remove("bi-cloud-arrow-down-fill");
-            botao.disabled = true;
-        }
-    </script>
+{% block extra_scripts %}
+<script src="{% static 'js/compras/sync_dashboard.js' %}"></script>
+{% endblock %}
+
 {% endblock %}

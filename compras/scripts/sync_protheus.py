@@ -33,15 +33,26 @@ def ler_tabela_sqlite(nome_arquivo):
 
     return df.astype(str)
 
-def processar_dados():
+def carregar_dados_brutos():
+    """Lê do disco apenas UMA VEZ e devolve os dados crus na RAM"""
+    print("[ETL] Lendo arquivos SDB para a memória...")
+    return {
+        'sc1': ler_tabela_sqlite('sc101011.sdb'),
+        'sc7': ler_tabela_sqlite('sc701011.sdb'),
+        'sa2': ler_tabela_sqlite('sa201011.sdb'),
+        'sd1': ler_tabela_sqlite('sd10101.sdb'),
+        'afg': ler_tabela_sqlite('afg0101.sdb')
+    }
+
+def processar_dados(dados_brutos):
     print("[2/4] Processando e limpando dados (ETL)...")
 
     # Leitura
-    df_sc1 = ler_tabela_sqlite('sc101011.sdb')
-    df_sc7 = ler_tabela_sqlite('sc701011.sdb')
-    df_sa2 = ler_tabela_sqlite('sa201011.sdb')
-    df_sd1 = ler_tabela_sqlite('sd10101.sdb')
-    df_afg = ler_tabela_sqlite('afg0101.sdb')
+    df_sc1 = dados_brutos['sc1'].copy()
+    df_sc7 = dados_brutos['sc7'].copy()
+    df_sa2 = dados_brutos['sa2'].copy()
+    df_sd1 = dados_brutos['sd1'].copy()
+    df_afg = dados_brutos['afg'].copy()
 
     # Limpeza Padrão Protheus
     for df in [df_sc1, df_sc7, df_sa2, df_sd1, df_afg]:
@@ -117,14 +128,14 @@ def processar_dados():
     print("[3/4] Retornando dados do DW para a memória...")
     return df_final
 
-def processar_dados_operacionais():
+def processar_dados_operacionais(dados_brutos):
     print('[ETL OPERACIONAL] Processando base bottom-up...')
 
-    df_sc1 = ler_tabela_sqlite('sc101011.sdb')
-    df_sc7 = ler_tabela_sqlite('sc701011.sdb')
-    df_sa2 = ler_tabela_sqlite('sa201011.sdb')
-    df_sd1 = ler_tabela_sqlite('sd10101.sdb')
-    df_afg = ler_tabela_sqlite('afg0101.sdb')
+    df_sc1 = dados_brutos['sc1'].copy()
+    df_sc7 = dados_brutos['sc7'].copy()
+    df_sa2 = dados_brutos['sa2'].copy()
+    df_sd1 = dados_brutos['sd1'].copy()
+    df_afg = dados_brutos['afg'].copy()
 
     for df in [df_sc1, df_sc7, df_sa2, df_sd1, df_afg]:
         if 'D_E_L_E_T_' in df.columns:

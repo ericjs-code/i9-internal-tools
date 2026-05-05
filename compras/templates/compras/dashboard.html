@@ -28,69 +28,56 @@
         </form>
     </div>
 
-    <script>
-        function mostrarCarregamento(form) {
-            const botao = form.querySelector("button");
-            const texto = form.querySelector("#texto-sync");
-            const icone = form.querySelector("#icone-sync");
-
-            texto.innerText = "Sincronizando...";
-            icone.classList.add("spinner-border", "spinner-border-sm");
-            icone.classList.remove("bi-cloud-arrow-down-fill");
-            botao.disabled = true;
-        }
-    </script>
-
     <div class="filter-card">
-    <form method="GET" class="row g-3 align-items-end">
-        <div class="col-md-2">
-            <label class="form-label small fw-bold">Data Início</label>
-            <input type="date" name="data_inicio" class="form-control form-control-sm" value="{{ filtros.data_inicio }}">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label small fw-bold">Data Fim</label>
-            <input type="date" name="data_fim" class="form-control form-control-sm" value="{{ filtros.data_fim }}">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label small fw-bold">Projeto</label>
-            <select name="projeto" class="form-select form-select-sm" onchange="this.form.submit()">
-                <option value="">Todos os Projetos</option>
-                {% for proj in lista_projetos %}
-                    <option value="{{ proj }}" {% if filtros.projeto == proj %}selected{% endif %}>{{ proj }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label small fw-bold">Tarefa</label>
-            <select name="tarefa" class="form-select form-select-sm">
-                <option value="">Todas as Tarefas</option>
-                {% for tar in lista_tarefas %}
-                    <option value="{{ tar }}" {% if filtros.tarefa == tar %}selected{% endif %}>{{ tar }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label small fw-bold">Fornecedor</label>
-            <select name="nome_fornecedor" class="form-select form-select-sm">
-                <option value="">Todas os Fornecedores</option>
-                {% for tar in lista_fornecedor %}
-                    <option value="{{ tar }}" {% if filtros.fornecedor == tar %}selected{% endif %}>{{ tar }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-auto d-flex gap-2 ms-auto">
-            <button type="submit" class="btn btn-sm btn-primary px-3">
-                <i class="bi bi-funnel me-1"></i> Filtrar
-            </button>
-            <a href="{% url 'dashboard_compras' %}" class="btn btn-sm btn-outline-secondary">
-                <i class="bi bi-eraser me-1"></i> Limpar
-            </a>
-            <button type="submit" name="export_csv" value="1" class="btn btn-sm btn-success">
-                <i class="bi bi-file-earmark-excel me-1"></i> Exportar Base
-            </button>
-        </div>
-    </form>
-</div>
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Data Início</label>
+                <input type="date" name="data_inicio" class="form-control form-control-sm" value="{{ filtros.data_inicio }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Data Fim</label>
+                <input type="date" name="data_fim" class="form-control form-control-sm" value="{{ filtros.data_fim }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Projeto</label>
+                <select name="projeto" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todos os Projetos</option>
+                    {% for proj in lista_projetos %}
+                        <option value="{{ proj }}" {% if filtros.projeto == proj %}selected{% endif %}>{{ proj }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Tarefa</label>
+                <select name="tarefa" class="form-select form-select-sm">
+                    <option value="">Todas as Tarefas</option>
+                    {% for tar in lista_tarefas %}
+                        <option value="{{ tar }}" {% if filtros.tarefa == tar %}selected{% endif %}>{{ tar }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Fornecedor</label>
+                <select name="nome_fornecedor" class="form-select form-select-sm">
+                    <option value="">Todas os Fornecedores</option>
+                    {% for tar in lista_fornecedor %}
+                        <option value="{{ tar }}" {% if filtros.fornecedor == tar %}selected{% endif %}>{{ tar }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-auto d-flex gap-2 ms-auto">
+                <button type="submit" class="btn btn-sm btn-primary px-3">
+                    <i class="bi bi-funnel me-1"></i> Filtrar
+                </button>
+                <a href="{% url 'dashboard_compras' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-eraser me-1"></i> Limpar
+                </a>
+                <button type="submit" name="export_csv" value="1" class="btn btn-sm btn-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Exportar Base
+                </button>
+            </div>
+        </form>
+    </div>
 
     <div class="row g-4 mb-4">
         <div class="col-md-3">
@@ -225,4 +212,8 @@
         }
     });
 </script>
+
+{% block extra_scripts %}
+<script src="{% static 'js/compras/sync_dashboard.js' %}"></script>
+{% endblock %}
 {% endblock %}
