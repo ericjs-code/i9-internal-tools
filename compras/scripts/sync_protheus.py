@@ -12,7 +12,7 @@ ARQUIVOS_COMPRAS = [
     'sc101011.sdb', 'sc701011.sdb',
     'sa20101.sdb', 'sd10101.sdb', 'afg0101.sdb',
     'sb10101.sdb', 'sx50101.sdb'
-
+]
 
 def extrair_dados_compras():
     dowload_files_sftp(arquivos_alvo=ARQUIVOS_COMPRAS, diretorio_destino=DATA_DIR)
