@@ -96,7 +96,9 @@ def task_sincronizar_protheus():
                 qtd_pedida=limpa_num(row.get('Qtd_Pedida')),
                 qtd_recebida=limpa_num(row.get('Qtd_Recebida')),
                 saldo_a_comprar=limpa_num(row.get('Saldo_A_Comprar')),
-                residuo=limpa_num(row.get('Residuo'))
+                residuo=limpa_num(row.get('Residuo')),
+                cnpj=limpa_str(row.get('cnpj', '')),
+                tipo_produto=row.get('tipo_produto', ''),
             ))
 
         with transaction.atomic():

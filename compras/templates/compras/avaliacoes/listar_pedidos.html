@@ -10,9 +10,18 @@
 </style>
 
 <div class="container-fluid">
-    <h3 class="fw-bold mb-4" style="color: var(--azul-principal);">
-        <i class="bi bi-star-half me-2"></i> Avaliação de Fornecedores
-    </h3>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold m-0" style="color: var(--azul-principal);">
+            <i class="bi bi-star-half me-2"></i> Avaliação de Fornecedores
+        </h3>
+
+        <button id="btnSync"
+            class="btn btn-sm btn-outline-dark shadow-sm"
+            data-url="{% url 'atualizar_dados_dw' %}"
+            data-csrf="{{ csrf_token }}">
+            <i class="bi bi-arrow-clockwise me-1"></i> Sincronizar Protheus
+        </button>
+    </div>
 
     <div class="filter-card">
         <form method="GET" class="row g-3 align-items-end">
@@ -82,7 +91,7 @@
                         </td>
 
                         <td class="text-end">
-                            <a href="{% url 'nova_avaliacao_fornecedor' ped.num_pedidos_vinculados %}"
+                            <a href="{% url 'nova_avaliacao_fornecedor' ped.num_pedidos_vinculados %}?tipo={{ ped.tipo_produto|urlencode }}"
                                class="btn btn-sm btn-outline-primary {% if ped.is_avaliado %}disabled{% endif %}">
                                 <i class="bi bi-pencil-square"></i> Avaliar
                             </a>
@@ -132,4 +141,5 @@
         </div>
     </div>
 </div>
+<script src="{% static 'js/compras/avaliacao_fornecedores/listar_pedidos.js' %}"></script>
 {% endblock %}

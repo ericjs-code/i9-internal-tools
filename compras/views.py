@@ -243,29 +243,39 @@ def checar_status_sync(request, task_id):
     })
 
 
-
 @login_required(login_url='/login/')
 @exige_permissao(['compras'])
 def listar_pedidos_avaliacao(request):
     """
-    Tela 2: Listagem de pedidos disponíveis para avaliação de fornecedores.
+    Listagem de pedidos disponíveis para avaliação de fornecedores.
     """
-    # 1. Subquery: Checa se já existe avaliação
     avaliacao_subquery = AvaliacaoFornecedor.objects.filter(
         num_pedido=OuterRef('num_pedidos_vinculados')
     )
 
-    # 2. Query Base (O "Paciente")
-    pedidos = OperacaoCompras.objects.exclude(num_pedidos_vinculados='').annotate(
-        is_avaliado=Exists(avaliacao_subquery)
+    base_query = OperacaoCompras.objects.exclude(num_pedidos_vinculados='').filter(
+        status_operacional__in=['ENTREGA PARCIAL', 'ATENDIDO TOTAL']
+    )
+
+    # Query Base
+    pedidos = base_query.values(
+        'num_pedidos_vinculados',
+        'nome_fornecedor',
+        'projeto_cod',
+        'tipo_produto',
+        'emissao_ultimo_pedido'
+    ).annotate(
+        total_itens=Count('id'),
+        is_avaliado=Exists(avaliacao_subquery) 
     ).order_by('-emissao_ultimo_pedido')
 
-    # 3. Captura dos Parâmetros GET
+
+    # Captura dos Parâmetros GET
     fornecedor = request.GET.get('nome_fornecedor')
     numero_pedido = request.GET.get('num_pedido')
     tipo_produto = request.GET.get('tipo_produto')
 
-    # 4. Aplicação dos Filtros na Query Base
+    # Aplicação dosFiltros na Query Base
     if fornecedor:
         pedidos = pedidos.filter(nome_fornecedor__icontains=fornecedor)
     if numero_pedido:
@@ -273,20 +283,19 @@ def listar_pedidos_avaliacao(request):
     if tipo_produto:
         pedidos = pedidos.filter(tipo_produto=tipo_produto)
 
-    # 5. Listas para popular os <select> do HTML
-    lista_fornecedores = OperacaoCompras.objects.exclude(nome_fornecedor='').values_list('nome_fornecedor',
-                                                                                         flat=True).distinct().order_by(
+
+    # Listas para popular os <select> do HTML
+    lista_fornecedores = OperacaoCompras.objects.exclude(nome_fornecedor='').values_list('nome_fornecedor', flat=True).distinct().order_by(
         'nome_fornecedor')
-    lista_tipos = OperacaoCompras.objects.exclude(tipo_produto='').values_list('tipo_produto',
-                                                                               flat=True).distinct().order_by(
+    lista_tipos = OperacaoCompras.objects.exclude(tipo_produto='').values_list('tipo_produto', flat=True).distinct().order_by(
         'tipo_produto')
 
-    # 6. Paginação Padrão
+    # Paginação Padrão
     paginator = Paginator(pedidos, 50)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # 7. Preservando a URL para a paginação
+    # Preservando a URL para a paginação
     query_params = request.GET.copy()
     if 'page' in query_params:
         del query_params['page']
@@ -311,17 +320,16 @@ def listar_pedidos_avaliacao(request):
 @exige_permissao(['compras'])
 def nova_avaliacao_fornecedor(request, numero_pedido):
     """
-    Tela 1 (Esqueleto): Formulário de avaliação.
-    (A lógica transacional de salvamento será construída na próxima etapa).
+    Formulário de avaliação.
     """
-    # 1. Busca os dados brutos da Operação Base para pré-preencher a tela
+    # Busca os dados brutos da Operação Base para pré-preencher a tela
     operacao_base = OperacaoCompras.objects.filter(num_pedidos_vinculados=numero_pedido).first()
 
     if not operacao_base:
         messages.error(request, "Pedido não encontrado.")
         return redirect('listar_pedidos_avaliacao')
 
-    # 2. Segurança: Checa se esse bloco de pedidos já foi avaliado
+    # Checa se esse bloco de pedidos já foi avaliado
     ja_avaliado = AvaliacaoFornecedor.objects.filter(num_pedido=numero_pedido).exists()
 
     if ja_avaliado:
@@ -331,11 +339,10 @@ def nova_avaliacao_fornecedor(request, numero_pedido):
     # Busca as perguntas ativas para renderizar no HTML
     perguntas = PerguntaAvaliacao.objects.filter(ativa=True)
 
-    # 4. Contexto do GET (Renderiza o formulário vazio)
+    # Contexto do GET (Renderiza o formulário vazio)
     context = {
         'operacao': operacao_base,
         'perguntas': perguntas,
     }
 
-    # Renderizamos um template temporário simples só para não quebrar a navegação hoje
     return render(request, 'compras/avaliacoes/form_avaliacao.html', context)
