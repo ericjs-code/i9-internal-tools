@@ -1,89 +1,21 @@
-﻿import calendar
-from collections import defaultdict
-from datetime import datetime
+﻿from datetime import datetime
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-# (removed unused imports)
 from django.core.paginator import Paginator, EmptyPage
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from core.decorators import exige_permissao
 from .forms import ReservaSalaForm
 from .models import ReservaSala
 from datetime import time as dtime, timedelta as dtimedelta
 import uuid
 from datetime import timedelta
 from django.core.exceptions import ValidationError
-MESES_PT = [
-    "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-]
-def _obter_mes_referencia(request):
-    hoje = timezone.localdate()
-    try:
-        ano = int(request.GET.get("ano", hoje.year))
-    except (TypeError, ValueError):
-        ano = hoje.year
-    try:
-        mes = int(request.GET.get("mes", hoje.month))
-    except (TypeError, ValueError):
-        mes = hoje.month
-    if mes < 1 or mes > 12:
-        mes = hoje.month
-    return ano, mes, hoje
-def _deslocar_mes(ano, mes, delta):
-    mes_total = mes + delta
-    ano += (mes_total - 1) // 12
-    mes_total = ((mes_total - 1) % 12) + 1
-    return ano, mes_total
+from .services import _obter_mes_referencia, _deslocar_mes, _url_dashboard_paginada, _montar_calendario_reservas, MESES_PT
 
 
-def _url_dashboard_paginada(request, page):
-    params = request.GET.copy()
-    params["page"] = str(page)
-    query = params.urlencode()
-    return f"{reverse('reservas_sala_dashboard')}?{query}#reservas-list" if query else f"{reverse('reservas_sala_dashboard')}#reservas-list"
-
-
-def _montar_calendario_reservas(ano, mes):
-    reservas = list(
-        ReservaSala.objects.select_related("usuario")
-        .filter(data__year=ano, data__month=mes)
-        .order_by("data", "horario_inicial")
-    )
-    reservas_por_dia = defaultdict(list)
-    for reserva in reservas:
-        if reserva.cancelada:
-            reserva.card_class = "bg-secondary-subtle text-muted"
-            reserva.badge_class = "text-bg-secondary"
-            reserva.status_label = "Cancelada"
-        else:
-            reserva.card_class = "bg-primary-subtle"
-            reserva.badge_class = "text-bg-primary"
-            reserva.status_label = "Reservada"
-        reservas_por_dia[reserva.data].append(reserva)
-    semanas = []
-    calendario = calendar.Calendar(firstweekday=0)
-    for semana in calendario.monthdatescalendar(ano, mes):
-        dias_semana = []
-        for dia in semana:
-            day_card_class = "border rounded-3 p-2 h-100 bg-white"
-            if dia.month != mes:
-                day_card_class = "border rounded-3 p-2 h-100 bg-light text-muted"
-            day_number_class = "fw-bold text-primary" if dia == timezone.localdate() else "fw-bold"
-            dias_semana.append({
-                "data": dia,
-                "no_mes": dia.month == mes,
-                "card_class": day_card_class,
-                "day_number_class": day_number_class,
-                "reservas": reservas_por_dia.get(dia, []),
-            })
-        semanas.append(dias_semana)
-    return semanas, reservas
 @login_required(login_url="/login/")
-@exige_permissao(["reserva_sala"])
 def reservas_sala_dashboard(request):
     ano, mes, hoje = _obter_mes_referencia(request)
     semanas, reservas_mes = _montar_calendario_reservas(ano, mes)
@@ -136,8 +68,9 @@ def reservas_sala_dashboard(request):
         "hoje": hoje,
     }
     return render(request, "reserva_sala/reservas_sala_dashboard.html", context)
+
+
 @login_required(login_url="/login/")
-@exige_permissao(["reserva_sala"])
 def reserva_sala_nova(request):
     if request.method == "POST":
         form = ReservaSalaForm(request.POST)
@@ -198,8 +131,9 @@ def reserva_sala_nova(request):
         "existing_start": "",
         "existing_end": "",
     })
+
+
 @login_required(login_url="/login/")
-@exige_permissao(["reserva_sala"])
 def reserva_sala_editar(request, pk):
     reserva = get_object_or_404(ReservaSala, pk=pk)
     if request.method == "POST":
@@ -247,8 +181,9 @@ def reserva_sala_editar(request, pk):
         "existing_start": reserva.horario_inicial.strftime("%H:%M"),
         "existing_end": reserva.horario_final.strftime("%H:%M"),
     })
+
+
 @login_required(login_url="/login/")
-@exige_permissao(["reserva_sala"])
 def reserva_sala_cancelar(request, pk):
     reserva = get_object_or_404(ReservaSala, pk=pk)
     if request.method == "POST":
@@ -270,8 +205,9 @@ def reserva_sala_cancelar(request, pk):
                 messages.info(request, "Esta reserva já estava cancelada.")
         return redirect("reservas_sala_dashboard")
     return render(request, "reserva_sala/reserva_sala_confirmar_cancelamento.html", {"reserva": reserva})
+
+
 @login_required(login_url="/login/")
-@exige_permissao(["reserva_sala"])
 def api_verificar_conflito_reserva(request):
     data_str = request.GET.get("data")
     inicio_str = request.GET.get("horario_inicial")
@@ -349,7 +285,6 @@ def api_verificar_conflito_reserva(request):
 
 
 @login_required(login_url="/login/")
-@exige_permissao(["reserva_sala"])
 def api_horarios_disponiveis(request):
     """Retorna slots de horários em incrementos de 30 minutos disponíveis para uma data.
 
@@ -422,5 +357,3 @@ def api_horarios_disponiveis(request):
             end_options[s.strftime("%H:%M")] = ends
 
     return JsonResponse({"start_slots": start_slots, "end_options": end_options})
-
-
