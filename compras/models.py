@@ -106,6 +106,7 @@ class PerguntaAvaliacao(models.Model):
 
 
 class AvaliacaoFornecedor(models.Model):
+    #coments
     num_pedido = models.CharField(max_length=50)
     cod_fornecedor = models.CharField(max_length=50)
     nome_fornecedor = models.CharField(max_length=255)
@@ -118,7 +119,7 @@ class AvaliacaoFornecedor(models.Model):
 
     @property
     def mediana_notas(self):
-        """Calcula a media das respostas atreladas a esta avaliação especifica"""
+        """Media das respostas atreladas a esta avaliação especifica"""
         notas = self.respostas.values_list('nota', flat=True)
         if not notas:
             return 0
@@ -129,6 +130,7 @@ class AvaliacaoFornecedor(models.Model):
 
 
 class RespostaAvaliacao(models.Model):
+    #coments
     class NotaChoices(models.IntegerChoices):
         ZERO = 0, '0 - Não Atendeu'
         DEZ = 10, '10 - Atendeu Totalmente'
