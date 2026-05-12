@@ -6,6 +6,11 @@ const RNCDashboard = (function() {
     let table = null;
     let choicesResp = null;
     const CONFIG = window.RNC_CONFIG;
+    const TIPO_GALERIA = {
+        NC: 'rnc_padrao',
+        EFICACIA: 'rnc_eficacia'
+    };
+
 
     // FUNÇÕES UTILITÁRIAS
     const util = {
@@ -155,7 +160,19 @@ const RNCDashboard = (function() {
                     return "-";
                 }, cellClick: function(e, cell){
                     let dados = cell.getRow().getData();
-                    if(dados.qtd_imagens > 0){ ui.abrirGaleriaImagens(dados, 'padrao'); }
+                    if(dados.qtd_imagens > 0){ ui.abrirGaleriaImagens(dados, TIPO_GALERIA.NC); }
+                }},
+                {title: "Imagem Eficácia", field: "qtd_imagens_eficacia", hozAlign: "center", formatter: function(cell){
+                    let qtd = cell.getValue();
+                    if(qtd > 0) {
+                        return `<button type="button" class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.75rem;">
+                                    <i class="bi bi-image"></i> (${qtd})
+                                </button>`;
+                    }
+                    return "-";
+                }, cellClick: function(e, cell){
+                    let dados = cell.getRow().getData();
+                    if(dados.qtd_imagens_eficacia > 0){ ui.abrirGaleriaImagens(dados, TIPO_GALERIA.EFICACIA); }
                 }},
                 {title: "Descrição da não conformidade", field: "descricao", formatter: "textarea", editor: "textarea", headerFilter: "input", editable: function(cell){ return CONFIG.isSGQ; }},
                 {title: "Correção Imediata", field: "correcao", formatter: "textarea", editor: "textarea", headerFilter: "input", editable: true},
@@ -395,13 +412,19 @@ const RNCDashboard = (function() {
             let containerGaleria = document.getElementById('galeria_content');
             containerGaleria.innerHTML = '';
 
-            let imagensArray = tipo === 'eficacia' ? (dados.eficacia_imagens_dados || []) : (dados.imagens_dados || []);
+            let imagensArray = []
             let tituloModal = document.querySelector('#modalGaleriaImagens .modal-title');
 
-            if (tipo === 'eficacia') {
+            if (tipo === TIPO_GALERIA.EFICACIA) {
+                imagensArray = dados.eficacia_imagens_dados || [];
                 tituloModal.innerHTML = '<i class="bi bi-shield-check me-2"></i>Evidências de Eficácia';
-            } else {
+            } else if (tipo === TIPO_GALERIA.NC){
+                imagensArray = dados.imagens_dados || [];
                 tituloModal.innerHTML = '<i class="bi bi-images me-2"></i>Evidências Fotográficas da Falha';
+            }
+            else {
+                console.error('Tipo galeria não cadastrado');
+                return;
             }
 
             imagensArray.forEach(imgObj => {
