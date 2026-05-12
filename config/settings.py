@@ -15,6 +15,7 @@ import mimetypes
 from pathlib import Path
 from django.conf.global_settings import USE_THOUSAND_SEPARATOR, EMAIL_HOST_PASSWORD
 from dotenv import load_dotenv
+import ssl
 
 
 load_dotenv()
@@ -184,10 +185,13 @@ else:
     CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
     CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 
+    CELERY_BROKER_USE_SSL = {'ssl_cert_reqs': ssl.CERT_NONE}
+    CELERY_REDIS_BACKEND_USE_SSL = {'ssl_cert_reqs': ssl.CERT_NONE}
     CELERY_REDIS_BACKEND_USE_SSL = {'ssl_cert_reqs': 'none'}
     CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
     CELERY_BROKER_POOL_LIMIT = 10
     CELERY_BROKER_HEARTBEAT = None
+}
 
 # Configurações globais
 CELERY_ACCEPT_CONTENT = ['json']
