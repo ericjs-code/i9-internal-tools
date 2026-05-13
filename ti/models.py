@@ -1,11 +1,13 @@
-import json
-import requests
-from django.core.exceptions import ValidationError
-from django.db import models
-from django.utils import timezone
+import uuid
+from django.db import models, transaction
 from django.conf import settings
+from django.utils import timezone
+from django.core.exceptions import ValidationError
+from .tasks import task_notificar_chamado  # Importação da task do Celery
+
 
 class Chamado(models.Model):
+    # --- MANTENDO SUAS LISTAS ORIGINAIS PARA NÃO QUEBRAR O BANCO ---
     PRIORIDADE = [
         ('BAIXA', 'Baixa - Impacto mínimo, sem interrupção'),
         ('MEDIA', 'Média - Impacto localizado, mas não impede o trabalho'),
@@ -33,7 +35,7 @@ class Chamado(models.Model):
         ('REDE', 'Rede e Conectividade (internet, VPN, switches, roteadores)'),
         ('ACESSO', 'Gestão de Acessos (criação/remoção de usuários, senhas, permissões)'),
         ('SEGURANCA', 'Segurança da Informação (antivírus, firewall, incidentes, backup)'),
-        ('INFRAESTRUTURA', 'Infraestrutura (servidores, storage, virtualização, backups)'),
+        ('INFRAESTRUTURA', 'Servidores, storage, virtualização, backups'),
         ('BANCO_DADOS', 'Banco de Dados (manutenção, performance, consultas)'),
         ('TELEFONIA', 'Telefonia / VoIP (ramais, softphones, centrais)'),
         ('EMAIL', 'Correio Eletrônico e Colaboração (e-mail, calendário, Teams, Slack)'),
@@ -46,33 +48,16 @@ class Chamado(models.Model):
     ]
 
     SETORES = [
-        ('COMERCIAL','Comercial'),
-        ('COMPRAS','Compras'),
-        ('DIRETORIA', 'Diretoria'),
-        ('FINANCEIRO', 'Financeiro'),
-        ('OBRA','Obra'),
-        ('ORCAMENTO', 'Orçamento'),
-        ('SGQ', 'SGQ'),
-        ('PRODUCAO', 'Produção'),
-        ('PROJETOS', 'Projetos'),
-        ('RECURSOS HUMADOS','Recursos Humados'),
-        ('T.I', 'T.I'),
+        ('COMERCIAL', 'Comercial'), ('COMPRAS', 'Compras'), ('DIRETORIA', 'Diretoria'),
+        ('FINANCEIRO', 'Financeiro'), ('OBRA', 'Obra'), ('ORCAMENTO', 'Orçamento'),
+        ('SGQ', 'SGQ'), ('PRODUCAO', 'Produção'), ('PROJETOS', 'Projetos'),
+        ('RECURSOS HUMADOS', 'Recursos Humados'), ('T.I', 'T.I'),
     ]
 
-    solicitante = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name='chamados_abertos',
-        verbose_name='Solicitante',
-    )
-    tecnico = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name='chamados_atendidos',
-        null=True,
-        blank=True,
-        verbose_name='Técnico Responsável'
-    )
+    # --- CAMPOS ORIGINAIS (MANTIDOS) ---
+    solicitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='chamados_abertos')
+    tecnico = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='chamados_atendidos')
 
     titulo = models.CharField(max_length=100)
     descricao = models.TextField(verbose_name='Descrição do Problema')
@@ -84,50 +69,44 @@ class Chamado(models.Model):
     data_fechamento = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=25, choices=STATUS, default='NOVO')
     solucao = models.TextField(verbose_name='Solução Utilizada', blank=True)
+    validado_pelo_solicitante = models.BooleanField(default=False)
 
-    validado_pelo_solicitante = models.BooleanField(
-        default=False,
-        verbose_name='Validado pelo Solicitante',
-        help_text='Indica se o usuário testou e confirmou a resolução do problema.'
-    )
-
-    def __str__(self):
-        return f"#{self.id} - {self.titulo}"
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Armazena o status inicial para detectar mudanças sem consultar o banco novamente
+        self._original_status = self.status
 
     def clean(self):
         if self.status == 'CONCLUIDO' and not self.validado_pelo_solicitante:
-            raise ValidationError({
-                'status': 'O chamado não pode ser encerrado (CONCLUÍDO) sem a validação do solicitante. Altere para RESOLVIDO e aguarde a confirmação do usuário na ponta.'
-            })
+            raise ValidationError({'status': 'O chamado não pode ser encerrado sem validação do solicitante.'})
         if self.status in ['RESOLVIDO', 'CONCLUIDO'] and not self.solucao:
-            raise ValidationError({
-                'solucao': 'Para marcar o chamado como RESOLVIDO ou CONCLUÍDO, é obrigatório descrever a solução técnica utilizada.'
-            })
+            raise ValidationError({'solucao': 'Descreva a solução técnica utilizada.'})
 
     def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        status_mudou = False
+        is_new = self._state.adding
 
-        if not is_new:
-            chamado_antigo = Chamado.objects.get(pk=self.pk)
-            if chamado_antigo.status != self.status:
-                status_mudou = True
-
+        # Gestão automática de data de fechamento
         if self.status == 'CONCLUIDO' and not self.data_fechamento:
-            self.data_fechamento = timezone.now()
+            self.data_fechamento = timezone.now().date()
         elif self.status != 'CONCLUIDO':
             self.data_fechamento = None
 
         super().save(*args, **kwargs)
 
+        # --- Lógica de Notificação via Celery (Performance & Estabilidade) ---
         if is_new:
-            self.enviar_teams_ti()
-            self.notificar_usuario(tipo="ABERTURA")
-        elif status_mudou:
-            if self.status == 'CONCLUIDO':
-                self.notificar_usuario(tipo="CONCLUSAO")
-            else:
-                self.notificar_usuario(tipo=self.status)
+            transaction.on_commit(
+                lambda: task_notificar_chamado.apply_async(args=[self.id, 'ABERTURA'], countdown=5)
+            )
+        elif self.status != self._original_status:
+            # Notifica apenas se o status realmente mudou
+            status_para_task = "CONCLUSAO" if self.status == "CONCLUIDO" else self.status
+            transaction.on_commit(
+                lambda: task_notificar_chamado.delay(self.id, status_para_task)
+            )
+
+    def __str__(self):
+        return f"#{self.id} - {self.titulo}"
 
     def calcular_sla(self):
         if self.prioridade == 'BAIXA': return '1 Dia'
@@ -242,6 +221,3 @@ class Chamado(models.Model):
 class ChamadoImagem(models.Model):
     chamado = models.ForeignKey(Chamado, on_delete=models.CASCADE, related_name='imagens')
     imagem = models.ImageField(upload_to='chamados/%Y/%m/')
-
-    def __str__(self):
-        return f"Imagem do Chamado #{self.chamado.id}"
