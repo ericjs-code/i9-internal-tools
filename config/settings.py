@@ -180,19 +180,30 @@ if DEBUG:
     CELERY_BROKER_URL = 'memory://'
     CELERY_RESULT_BACKEND = 'cache+memory://'
 else:
-    # AMBIENTE PRODUÇÃO (PYTHONANYWHERE)
+    # AMBIENTE PRODUÇÃO (PYTHONANYWHERE + UPSTASH)
     CELERY_TASK_ALWAYS_EAGER = False
     CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
     CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 
+    # Configurações de SSL para Upstash (Corrigido)
     CELERY_BROKER_USE_SSL = {'ssl_cert_reqs': ssl.CERT_NONE}
     CELERY_REDIS_BACKEND_USE_SSL = {'ssl_cert_reqs': ssl.CERT_NONE}
-    CELERY_REDIS_BACKEND_USE_SSL = {'ssl_cert_reqs': 'none'}
+
+    # Otimização de Conexão para PythonAnywhere
     CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
-    CELERY_BROKER_POOL_LIMIT = 10
+
+    # Limite de conexões (Upstash Free suporta poucas conexões simultâneas)
+    CELERY_BROKER_POOL_LIMIT = 1
+
+    # Estabilidade da conexão
     CELERY_BROKER_HEARTBEAT = None
+    CELERY_REDIS_SOCKET_TIMEOUT = 30
+    CELERY_REDIS_RETRY_ON_TIMEOUT = True
 
 # Configurações globais
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'America/Sao_Paulo'
+
+# --- CONFIGURAÇÕES DE INTEGRAÇÃO ---
+TEAMS_WEBHOOK_URL = os.getenv('TEAMS_WEBHOOK_URL')
