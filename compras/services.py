@@ -59,3 +59,21 @@ def gerar_csv_gerencial_compras(queryset):
             obj.leadtime_compras, obj.leadtime_fornecedor, obj.dias_atraso_entrega
         ])
     return response
+
+def gerar_csv_ranking_fornecedores(ranking):
+    """
+    Recebe a lista de dicionários do ranking processado e devolve o CSV.
+    Não faz queries no banco, apenas formata e exporta.
+    """
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="ranking_fornecedores.csv"'
+    response.write(u'\ufeff'.encode('utf8'))
+
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['Fornecedor', 'Quantidade de Avaliações', 'Nota Final (Mediana)'])
+
+    for item in ranking:
+        nota_str = str(round(item['mediana'], 1)).replace('.', ',')
+        writer.writerow([item['fornecedor'], item['qtd_avaliacoes'], nota_str])
+
+    return response

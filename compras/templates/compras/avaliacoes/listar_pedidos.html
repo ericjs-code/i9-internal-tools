@@ -15,12 +15,18 @@
             <i class="bi bi-star-half me-2"></i> Avaliação de Fornecedores
         </h3>
 
-        <button id="btnSync"
-            class="btn btn-sm btn-outline-dark shadow-sm"
-            data-url="{% url 'atualizar_dados_dw' %}"
-            data-csrf="{{ csrf_token }}">
-            <i class="bi bi-arrow-clockwise me-1"></i> Sincronizar Protheus
-        </button>
+        <div class="d-flex gap-2">
+            <a href="{% url 'dashboard_avaliacoes' %}" class="btn btn-sm btn-primary shadow-sm">
+                <i class="bi bi-graph-up-arrow me-1"></i> Ver Dashboard
+            </a>
+
+            <button id="btnSync"
+                class="btn btn-sm btn-outline-dark shadow-sm"
+                data-url="{% url 'atualizar_dados_dw' %}"
+                data-csrf="{{ csrf_token }}">
+                <i class="bi bi-arrow-clockwise me-1"></i> Sincronizar Protheus
+            </button>
+        </div>
     </div>
 
     <div class="filter-card">

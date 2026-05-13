@@ -1,15 +1,131 @@
 {% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Avaliar Fornecedor - I9TMG{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Avaliar Fornecedor</h2>
-    <p>Pedido: {{ operacao.num_pedidos_vinculados }}</p>
-    <p>Fornecedor: {{ operacao.nome_fornecedor }} ({{ operacao.cnpj }})</p>
-    
-    <div class="alert alert-info">
-        Tela de formulário em construção
+<style>
+    .info-card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 25px; border-left: 4px solid var(--azul-principal); }
+    .question-card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 15px; border: 1px solid #f0f0f0; transition: all 0.3s ease; }
+    .question-card:hover { border-color: #dee2e6; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+    .justificativa-box { display: none; margin-top: 15px; animation: fadeIn 0.3s; }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="container-fluid" style="max-width: 1000px;">
+    <!-- Cabeçalho da Página -->
+    <div class="d-flex justify-content-between align-items-center mb-4 mt-2">
+        <h3 class="fw-bold m-0" style="color: var(--azul-principal);">
+            <i class="bi bi-ui-checks-grid me-2"></i> Realizar Avaliação
+        </h3>
+        <a href="{% url 'listar_pedidos_avaliacao' %}" class="btn btn-sm btn-outline-secondary shadow-sm">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
     </div>
-    
-    <a href="{% url 'listar_pedidos_avaliacao' %}" class="btn btn-secondary">Voltar</a>
+
+    <!-- Metadados do Pedido -->
+    <div class="info-card">
+        <div class="row g-3">
+            <div class="col-md-3 border-end">
+                <span class="text-muted small fw-bold text-uppercase"><i class="bi bi-hash"></i> Pedido</span>
+                <h5 class="fw-bold text-primary mt-1 mb-0">{{ operacao.num_pedidos_vinculados }}</h5>
+            </div>
+            <div class="col-md-5 border-end">
+                <span class="text-muted small fw-bold text-uppercase"><i class="bi bi-building"></i> Fornecedor</span>
+                <h5 class="fw-bold mt-1 mb-0">{{ operacao.nome_fornecedor }}</h5>
+                <small class="text-muted">{{ operacao.cnpj }}</small>
+            </div>
+            <div class="col-md-2 border-end">
+                <span class="text-muted small fw-bold text-uppercase"><i class="bi bi-kanban"></i> Projeto</span>
+                <h5 class="fw-bold mt-1 mb-0">{{ operacao.projeto_cod|default:"-" }}</h5>
+            </div>
+            <div class="col-md-2">
+                <span class="text-muted small fw-bold text-uppercase"><i class="bi bi-box-seam"></i> Setor/Tipo</span>
+                <h5 class="fw-bold mt-1 mb-0">{{ operacao.tipo_produto|default:"-" }}</h5>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulário de Avaliação Dinâmico -->
+    <form method="POST" id="formAvaliacao">
+        {% csrf_token %}
+
+        {% for pergunta in perguntas %}
+        <div class="question-card">
+            <h5 class="fw-bold mb-4" style="color: #333;">{{ forloop.counter }}. {{ pergunta.texto }}</h5>
+
+            <div class="d-flex gap-4">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input note-radio fs-5" type="radio" name="nota_{{ pergunta.id }}" id="nota10_{{ pergunta.id }}" value="10" data-target="justificativa_{{ pergunta.id }}" required>
+                    <label class="form-check-label text-success fw-bold mt-1 ms-1" for="nota10_{{ pergunta.id }}">
+                        <i class="bi bi-check-circle-fill me-1"></i> Sim (Nota 10)
+                    </label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input note-radio fs-5" type="radio" name="nota_{{ pergunta.id }}" id="nota0_{{ pergunta.id }}" value="0" data-target="justificativa_{{ pergunta.id }}">
+                    <label class="form-check-label text-danger fw-bold mt-1 ms-1" for="nota0_{{ pergunta.id }}">
+                        <i class="bi bi-x-circle-fill me-1"></i> Não (Nota 0)
+                    </label>
+                </div>
+            </div>
+
+            <!-- Caixa de Justificativa (Display: None inicial) -->
+            <div class="justificativa-box" id="box_justificativa_{{ pergunta.id }}">
+                <div class="p-3 bg-light rounded border border-danger border-opacity-25 mt-3">
+                    <label for="justificativa_{{ pergunta.id }}" class="form-label small fw-bold text-danger">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Justificativa obrigatória para Nota 0
+                    </label>
+                    <textarea class="form-control shadow-sm" name="justificativa_{{ pergunta.id }}" id="justificativa_{{ pergunta.id }}" rows="2" placeholder="Descreva de forma clara o motivo do não atendimento..."></textarea>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Botão de Ação -->
+        <div class="d-flex justify-content-end mt-4 mb-5">
+            <button type="submit" class="btn btn-primary px-5 py-2 fw-bold shadow" id="btnSubmit">
+                <i class="bi bi-send-check me-2"></i> Salvar Avaliação
+            </button>
+        </div>
+    </form>
 </div>
+
+<!-- Lógica Dinâmica da Interface -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const radios = document.querySelectorAll('.note-radio');
+
+        radios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                const targetId = this.getAttribute('data-target');
+                const box = document.getElementById('box_' + targetId);
+                const textarea = document.getElementById(targetId);
+
+                if (this.value === '0') {
+                    // Revela a caixa e torna o preenchimento obrigatório no HTML5
+                    box.style.display = 'block';
+                    textarea.setAttribute('required', 'required');
+                    textarea.focus();
+                } else {
+                    // Esconde a caixa, retira a obrigatoriedade e limpa o texto digitado
+                    box.style.display = 'none';
+                    textarea.removeAttribute('required');
+                    textarea.value = '';
+                }
+            });
+        });
+
+        // Efeito de loading no botão para evitar double-click do usuário
+        const form = document.getElementById('formAvaliacao');
+        form.addEventListener('submit', function() {
+            const btn = document.getElementById('btnSubmit');
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Registrando...';
+            btn.classList.add('disabled');
+        });
+    });
+</script>
 {% endblock %}

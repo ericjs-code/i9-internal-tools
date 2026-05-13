@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard de Avaliações - I9TMG{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold m-0" style="color: var(--azul-principal);">
+            <i class="bi bi-graph-up-arrow me-2"></i> Análise de Fornecedores
+        </h3>
+        <a href="{% url 'listar_pedidos_avaliacao' %}" class="btn btn-sm btn-outline-primary shadow-sm">
+            <i class="bi bi-list-check me-1"></i> Ir para Avaliações
+        </a>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-primary border-4 h-100">
+                <div class="card-body">
+                    <h6 class="text-muted fw-bold text-uppercase mb-1">Total de Avaliações</h6>
+                    <h2 class="fw-bold text-dark mb-0">{{ total_avaliacoes }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-info border-4 h-100">
+                <div class="card-body">
+                    <h6 class="text-muted fw-bold text-uppercase mb-1">Fornecedores Avaliados</h6>
+                    <h2 class="fw-bold text-dark mb-0">{{ fornecedores_avaliados }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-danger border-4 h-100">
+                <div class="card-body">
+                    <h6 class="text-muted fw-bold text-uppercase mb-1">Fornecedores em Risco (< {{ nota_corte }})</h6>
+                    <h2 class="fw-bold text-danger mb-0">{{ fornecedores_risco }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Gráfico de Desempenho -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-0 pt-4 pb-0">
+                    <h5 class="fw-bold m-0"><i class="bi bi-bar-chart-fill me-2 text-primary"></i>Mediana de Notas por Fornecedor</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="rankingChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela de Ranking -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-0 pt-4 pb-2 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold m-0"><i class="bi bi-trophy-fill me-2 text-warning"></i>Ranking Analítico</h5>
+
+                    <!-- Botão de Extração -->
+                    <a href="{% url 'exportar_ranking_csv' %}" class="btn btn-sm btn-outline-success shadow-sm">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Excel
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover table-borderless align-middle m-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th class="ps-4">Fornecedor</th>
+                                    <th class="text-center">Avals.</th>
+                                    <th class="text-center pe-4">Nota Final</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in ranking %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <span class="small fw-bold text-dark">{{ item.fornecedor }}</span>
+                                    </td>
+                                    <td class="text-center text-muted small">{{ item.qtd_avaliacoes }}</td>
+                                    <td class="text-center pe-4">
+                                        {% if item.risco %}
+                                            <span class="badge bg-danger rounded-pill px-3">{{ item.mediana|floatformat:1 }}</span>
+                                        {% else %}
+                                            <span class="badge bg-success rounded-pill px-3">{{ item.mediana|floatformat:1 }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">Nenhum dado de avaliação disponível.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script do Gráfico (Chart.js) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('rankingChart').getContext('2d');
+
+        const labels = JSON.parse('{{ chart_labels|escapejs }}');
+        const data = JSON.parse('{{ chart_data|escapejs }}');
+        const colors = JSON.parse('{{ chart_colors|escapejs }}');
+        const notaCorte = 8.0;
+
+        // Cria um array com o valor 8.0 repetido para traçar a linha reta
+        const linhaCorteData = Array(labels.length).fill(notaCorte);
+
+        new Chart(ctx, {
+            type: 'bar', // Gráfico base de barras
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        // Dataset 1: A linha de corte
+                        type: 'line',
+                        label: 'Linha de Corte (8.0)',
+                        data: linhaCorteData,
+                        borderColor: '#dc3545',
+                        borderWidth: 2,
+                        borderDash: [5, 5], // Deixa a linha tracejada
+                        pointRadius: 0, // Remove as bolinhas da linha
+                        fill: false,
+                        order: 1 // Garante que a linha fique por cima das barras
+                    },
+                    {
+                        // Dataset 2: As barras de desempenho
+                        type: 'bar',
+                        label: 'Nota Final (Mediana)',
+                        data: data,
+                        backgroundColor: colors,
+                        borderRadius: 4,
+                        borderWidth: 0,
+                        order: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: {
+                            filter: function(item, chart) {
+                                // Mostra na legenda apenas a linha de corte
+                                return item.text.includes('Corte');
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.parsed.y.toFixed(1);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 10,
+                        grid: { borderDash: [4, 4] }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

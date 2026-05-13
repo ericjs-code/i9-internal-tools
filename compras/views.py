@@ -1,4 +1,5 @@
 import json
+import statistics
 from dotenv import load_dotenv
 from django.core.cache import cache
 from celery.result import AsyncResult
@@ -6,10 +7,9 @@ from django.db.models import Avg, Count, Q, Sum
 from django.http import JsonResponse
 from .models import DataWarehouseCompras
 from django.views.decorators.http import require_POST
-from .services import gerar_csv_operacoes_compras, gerar_csv_gerencial_compras
+from .services import gerar_csv_operacoes_compras, gerar_csv_gerencial_compras, gerar_csv_ranking_fornecedores
 from .task import task_sincronizar_protheus
-
-
+from django.db import transaction
 from django.db.models import Exists, OuterRef
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect
@@ -316,33 +316,195 @@ def listar_pedidos_avaliacao(request):
     return render(request, 'compras/avaliacoes/listar_pedidos.html', context)
 
 
+
 @login_required(login_url='/login/')
 @exige_permissao(['compras'])
 def nova_avaliacao_fornecedor(request, numero_pedido):
     """
-    Formulário de avaliação.
+    Formulário de avaliação e processamento do POST com transação segura.
+    Granularidade: Pedido + Tipo de Produto.
     """
+    tipo_produto = request.GET.get('tipo', '')
+
     # Busca os dados brutos da Operação Base para pré-preencher a tela
-    operacao_base = OperacaoCompras.objects.filter(num_pedidos_vinculados=numero_pedido).first()
+    operacao_base = OperacaoCompras.objects.filter(
+        num_pedidos_vinculados=numero_pedido,
+        tipo_produto=tipo_produto
+    ).first()
 
     if not operacao_base:
-        messages.error(request, "Pedido não encontrado.")
+        messages.error(request, "Pedido ou Tipo de Produto não encontrado na base operacional.")
         return redirect('listar_pedidos_avaliacao')
 
-    # Checa se esse bloco de pedidos já foi avaliado
-    ja_avaliado = AvaliacaoFornecedor.objects.filter(num_pedido=numero_pedido).exists()
+    # Checa se esse bloco exato (Pedido + Tipo) já foi avaliado
+    ja_avaliado = AvaliacaoFornecedor.objects.filter(
+        num_pedido=numero_pedido,
+        tipo_produto=tipo_produto
+    ).exists()
 
     if ja_avaliado:
-        messages.warning(request, "Este pedido já foi avaliado.")
+        messages.warning(request, f"O pedido {numero_pedido} para o setor '{tipo_produto}' já foi avaliado.")
         return redirect('listar_pedidos_avaliacao')
 
-    # Busca as perguntas ativas para renderizar no HTML
-    perguntas = PerguntaAvaliacao.objects.filter(ativa=True)
+    perguntas = PerguntaAvaliacao.objects.filter(ativa=True).order_by('ordem')
 
-    # Contexto do GET (Renderiza o formulário vazio)
+    # PROCESSAMENTO DO FORMULÁRIO (POST)
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+
+                # Cria o Cabeçalho da Avaliação
+                nova_avaliacao = AvaliacaoFornecedor.objects.create(
+                    num_pedido=numero_pedido,
+                    cod_fornecedor=operacao_base.num_fornecedor if hasattr(operacao_base,'num_fornecedor') else getattr(operacao_base, 'cod_fornecedor', ''),
+                    nome_fornecedor=operacao_base.nome_fornecedor,
+                    cnpj=operacao_base.cnpj,
+                    projeto=operacao_base.projeto_cod,
+                    tipo_produto=tipo_produto,
+                    avaliador=request.user
+                )
+
+                # Varre as perguntas ativas para salvar as respostas
+                for pergunta in perguntas:
+                    # O HTML enviará inputs com name="nota_1", "justificativa_1", etc.
+                    str_nota = request.POST.get(f'nota_{pergunta.id}')
+                    justificativa = request.POST.get(f'justificativa_{pergunta.id}', '').strip()
+
+                    # Validação de segurança
+                    if str_nota is None or str_nota == '':
+                        raise ValueError(f"A pergunta '{pergunta.texto}' não foi respondida.")
+
+                    nota_int = int(str_nota)
+
+                    # Regra de Negócio Crítica: Nota 0 exige justificativa
+                    if nota_int == 0 and not justificativa:
+                        raise ValueError(
+                            f"A nota 0 na pergunta '{pergunta.texto}' exige uma justificativa obrigatória.")
+
+                    # Salva a resposta vinculada à avaliação e à pergunta
+                    RespostaAvaliacao.objects.create(
+                        avaliacao=nova_avaliacao,
+                        pergunta=pergunta,
+                        nota=nota_int,
+                        justificativa=justificativa if nota_int == 0 else ''  # Força justificativa vazia se nota 10
+                    )
+
+            messages.success(request, "Avaliação registrada com sucesso!")
+            return redirect('listar_pedidos_avaliacao')
+
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Erro interno ao salvar avaliação: {str(e)}")
+
     context = {
         'operacao': operacao_base,
         'perguntas': perguntas,
     }
 
     return render(request, 'compras/avaliacoes/form_avaliacao.html', context)
+
+
+
+@login_required(login_url='/login/')
+@exige_permissao(['compras'])
+def dashboard_avaliacoes(request):
+    """
+    Dashboard de Análise de Desempenho dos Fornecedores.
+    Calcula a mediana das notas e identifica fornecedores abaixo do corte de 8.0.
+    """
+    # Busca todas as avaliações e faz um "join" com as respostas para otimizar o banco
+    avaliacoes = AvaliacaoFornecedor.objects.prefetch_related('respostas').all()
+
+    fornecedores_data = {}
+
+    # Agrupamento de dados por Fornecedor
+    for aval in avaliacoes:
+        fornecedor = aval.nome_fornecedor
+        if fornecedor not in fornecedores_data:
+            fornecedores_data[fornecedor] = {'notas_avaliacoes': [], 'qtd_avaliacoes': 0}
+
+        fornecedores_data[fornecedor]['qtd_avaliacoes'] += 1
+
+        notas_aval = [resp.nota for resp in aval.respostas.all()]
+        if notas_aval:
+            media_do_pedido = sum(notas_aval) / len(notas_aval)
+            fornecedores_data[fornecedor]['notas_avaliacoes'].append(media_do_pedido)
+
+    ranking = []
+    fornecedores_risco = 0
+    nota_corte = 8.0
+
+    # Processamento Estatístico (Mediana das Médias)
+    for f_nome, data in fornecedores_data.items():
+        mediana_final = statistics.median(data['notas_avaliacoes']) if data['notas_avaliacoes'] else 0
+        abaixo_corte = mediana_final < nota_corte
+
+        if abaixo_corte:
+            fornecedores_risco += 1
+
+        ranking.append({
+            'fornecedor': f_nome,
+            'mediana': mediana_final,
+            'qtd_avaliacoes': data['qtd_avaliacoes'],
+            'risco': abaixo_corte
+        })
+
+    # Ordenar ranking: Menores notas primeiro (para destacar os piores)
+    ranking.sort(key=lambda x: (x['mediana'], -x['qtd_avaliacoes']))
+
+    # Preparação dos dados para o Gráfico (Chart.js)
+    labels = [r['fornecedor'][:20] + "..." if len(r['fornecedor']) > 20 else r['fornecedor'] for r in ranking]
+    medians = [r['mediana'] for r in ranking]
+
+    # Cores: Vermelho para < 8.0, Azul para >= 8.0
+    cores = ['#dc3545' if r['risco'] else '#0d6efd' for r in ranking]
+
+    context = {
+        'ranking': ranking,
+        'total_avaliacoes': avaliacoes.count(),
+        'fornecedores_avaliados': len(ranking),
+        'fornecedores_risco': fornecedores_risco,
+        'chart_labels': json.dumps(labels),
+        'chart_data': json.dumps(medians),
+        'chart_colors': json.dumps(cores),
+        'nota_corte': nota_corte
+    }
+
+    return render(request, 'compras/avaliacoes/dashboard_avaliacoes.html', context)
+
+
+@login_required(login_url='/login/')
+@exige_permissao(['compras'])
+def exportar_ranking_csv(request):
+    """
+    Prepara os dados do ranking e delega a geração do arquivo para o services.py
+    """
+    avaliacoes = AvaliacaoFornecedor.objects.prefetch_related('respostas').all()
+    fornecedores_data = {}
+
+    for aval in avaliacoes:
+        fornecedor = aval.nome_fornecedor
+        if fornecedor not in fornecedores_data:
+            fornecedores_data[fornecedor] = {'notas_avaliacoes': [], 'qtd_avaliacoes': 0}
+
+        fornecedores_data[fornecedor]['qtd_avaliacoes'] += 1
+
+        notas_aval = [resp.nota for resp in aval.respostas.all()]
+        if notas_aval:
+            media_do_pedido = sum(notas_aval) / len(notas_aval)
+            fornecedores_data[fornecedor]['notas_avaliacoes'].append(media_do_pedido)
+
+    ranking = []
+    for f_nome, data in fornecedores_data.items():
+        mediana_final = statistics.median(data['notas_avaliacoes']) if data['notas_avaliacoes'] else 0
+        ranking.append({
+            'fornecedor': f_nome,
+            'mediana': mediana_final,
+            'qtd_avaliacoes': data['qtd_avaliacoes']
+        })
+
+    ranking.sort(key=lambda x: (x['mediana'], -x['qtd_avaliacoes']))
+
+    # View delegando o trabalho sujo para a camada de serviço:
+    return gerar_csv_ranking_fornecedores(ranking)

@@ -123,7 +123,7 @@ class AvaliacaoFornecedor(models.Model):
         notas = self.respostas.values_list('nota', flat=True)
         if not notas:
             return 0
-        return statistics.median(notas)
+        return sum(notas) / len(notas)
 
     def __str__(self):
         return f"Avaliação - Pedido: {self.num_pedido} - {self.nome_fornecedor}"
