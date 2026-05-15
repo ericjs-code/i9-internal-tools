@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
-from .models import RNC, Local, Equipamento, RNCImagem, RNCEficaciaImagem
+from .models import RNC, Local, Equipamento, RNCImagem, RNCEficaciaImagem, RNCEficaciaPDF
 from .service import RNCService
 from core.decorators import exige_permissao
 
@@ -42,7 +42,7 @@ def api_listar_rncs(request):
     rncs = RNC.objects.select_related(
         'registrador', 'equipamento', 'local'
     ).prefetch_related(
-        'responsaveis', 'imagens', 'eficacia_imagens'
+        'responsaveis', 'imagens', 'eficacia_imagens', 'eficacia_pdfs'
     ).all().order_by('-id')
 
     data = []
@@ -50,6 +50,7 @@ def api_listar_rncs(request):
         nomes_responsaveis = ", ".join([resp.get_full_name() or resp.username for resp in rnc.responsaveis.all()])
         imagens_dados = [{'id': img.id, 'url': img.imagem.url} for img in rnc.imagens.all() if img.imagem]
         eficacia_imagens_dados = [{'id': img.id, 'url': img.imagens_eficacia.url} for img in rnc.eficacia_imagens.all()if img.imagens_eficacia]
+        pdfs_dados = [{'id': pdf.id, 'url': pdf.arquivo_pdf.url} for pdf in rnc.eficacia_pdfs.all() if pdf.arquivo_pdf]
 
         data.append({
             'id': rnc.id,
@@ -75,7 +76,7 @@ def api_listar_rncs(request):
             'causas_principais': rnc.causas_principais or '',
             'acao_corretiva': rnc.acao_corretiva or '',
             'eficacia_texto': rnc.eficacia_texto or '',
-            'eficacia_pdf': rnc.eficacia_pdf.url if rnc.eficacia_pdf else '',
+            'pdfs_dados': pdfs_dados,
             'qtd_imagens': len(imagens_dados),
             'primeira_imagem_url': imagens_dados[0] if imagens_dados else '',
             'imagens_dados': imagens_dados,
@@ -184,6 +185,11 @@ def api_editar_rnc_avancado(request, rnc_id):
         for img in imagens_eficacia:
             RNCEficaciaImagem.objects.create(rnc=rnc_atualizada, imagens_eficacia=img)
 
+        pdfs_eficacia = request.FILES.getlist('eficacia_pdfs_multiplos')
+        for pdf in pdfs_eficacia:
+            RNCEficaciaPDF.objects.create(rnc=rnc_atualizada, arquivo_pdf=pdf)
+
+
         if rnc_atualizada.data_encerramento and rnc_atualizada.data_encerramento != data_antiga:
             RNCService._notificar_data_encerramento(rnc_atualizada.id)
 
@@ -211,13 +217,15 @@ def api_deletar_midia_rnc(request, tipo, midia_id):
                 midia_eficacia.imagens_eficacia.delete(save=False)
             midia_eficacia.delete()
 
-        elif tipo == 'pdf':
-            rnc = get_object_or_404(RNC, id=midia_id)
-            if rnc.eficacia_pdf:
-                rnc.eficacia_pdf.delete(save=False)
-                rnc.eficacia_pdf = None
-                rnc.save(update_fields=['eficacia_pdf'])
 
+        elif tipo == 'pdf':
+            rncpdf = get_object_or_404(RNCEficaciaPDF, id=midia_id)
+            if rncpdf.arquivo_pdf:
+                rncpdf.arquivo_pdf.delete(save=False)
+            rncpdf.delete()
+        else:
+            return JsonResponse({'status': 'erro', 'mensagem': 'Tipo de mídia inválido não reconhecido pela API.'}, status=400)
         return JsonResponse({'status': 'sucesso'})
+
     except Exception as e:
         return JsonResponse({'status': 'erro', 'mensagem': str(e)}, status=500)

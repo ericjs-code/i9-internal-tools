@@ -107,7 +107,6 @@ class RNC(models.Model):
 
     # --- Verificação de Eficácia ---
     eficacia_texto = models.TextField('Verificação de Eficácia (Texto)', blank=True, null=True)
-    eficacia_pdf = models.FileField('Mídia da Verificação (PDF)', upload_to='qualidade/rnc/pdfs/', blank=True, null=True)
 
     # --- Gestão de Prazos e Responsáveis ---
     # ManyToMany permite vincular N usuários como responsáveis por uma única RNC
@@ -150,3 +149,12 @@ class RNCEficaciaImagem(models.Model):
 
     def __str__(self):
         return f'Anexo da RNC #{self.rnc.id}'
+
+class RNCEficaciaPDF(models.Model):
+    rnc = models.ForeignKey(RNC, on_delete=models.CASCADE, related_name='eficacia_pdfs')
+    arquivo_pdf = models.FileField('Anexo PDF Eficacia', upload_to='qualidade/rnc/pdfs/')
+    enviado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'PDF Eficácia da RNC'
+        verbose_name_plural = 'PDF Eficácias da RNCs'

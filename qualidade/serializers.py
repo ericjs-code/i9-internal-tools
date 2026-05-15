@@ -20,7 +20,6 @@ class RNCSerializer(serializers.ModelSerializer):
             'causas_principais',
             'acao_corretiva',
             'eficacia_texto',
-            'eficacia_pdf',
             'responsaveis',
             'data_encerramento',
             'data_prevista_conclusao',

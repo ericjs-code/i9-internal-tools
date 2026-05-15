@@ -7,8 +7,8 @@ const RNCDashboard = (function() {
     let choicesResp = null;
     const CONFIG = window.RNC_CONFIG;
     const TIPO_GALERIA = {
-        NC: 'rnc_padrao',
-        EFICACIA: 'rnc_eficacia'
+        NC: 'padrao',
+        EFICACIA: 'eficacia'
     };
 
 
@@ -184,25 +184,32 @@ const RNCDashboard = (function() {
                 if(url) return `<a href="${url}" target="_blank" class="text-primary text-decoration-none">Acessar</a>`;
                 return "-";
                 }},
-                {title: "Evidência Eficácia PDF", download: false, field: "eficacia_pdf", formatter: function(cell){
-                    let url = cell.getValue();
+                {title: "Evidência Eficácia PDF", download: false, field: "pdfs_dados", formatter: function(cell){
+                    let pdfs = cell.getValue();
                     let rncId = cell.getRow().getData().id;
-                    if(url) {
-                        return `
-                            <div class="d-flex gap-1 justify-content-center">
-                                <a href="${url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" title="Ver PDF" style="font-size: 0.75rem;">
-                                    <i class="bi bi-file-pdf"></i> PDF
-                                </a>
-                                <button type="button" class="btn btn-sm btn-danger py-0" title="Excluir PDF" style="font-size: 0.75rem;" 
-                                        onclick="RNCDashboard.api.deletarMidia('pdf', ${rncId}, ${rncId}, this)">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        `;
+
+                    if(Array.isArray(pdfs) && pdfs.length > 0) {
+
+
+                        let htmlBotoes = pdfs.map(pdfObj => {
+                            return `
+                                <div class="d-flex gap-1 mb-1">
+                                    <a href="${pdfObj.url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" title="Ver PDF" style="font-size: 0.75rem;">
+                                        <i class="bi bi-file-pdf"></i> PDF
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-danger py-0" title="Excluir PDF" style="font-size: 0.75rem;" 
+                                            onclick="RNCDashboard.api.deletarMidia('pdf', ${pdfObj.id}, ${rncId}, this)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            `;
+                        }).join('');
+
+                        return `<div class="d-flex flex-column align-items-center">${htmlBotoes}</div>`;
                     }
                     return "-";
                 }},
-                {title: "Imagem Eficácia", field: "qtd_imagens_eficacia", hozAlign: "center", formatter: function(cell){
+                {title: "Imagem NC", field: "qtd_imagens", hozAlign: "center", formatter: function(cell){
                     let qtd = cell.getValue();
                     if(qtd > 0) {
                         return `<button type="button" class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.75rem;">
@@ -212,8 +219,8 @@ const RNCDashboard = (function() {
                     return "-";
                 }, cellClick: function(e, cell){
                     let dados = cell.getRow().getData();
-                    if(dados.qtd_imagens_eficacia > 0){ ui.abrirGaleriaImagens(dados, TIPO_GALERIA.EFICACIA); }
-                }}
+                    if(dados.qtd_imagens > 0){ ui.abrirGaleriaImagens(dados, TIPO_GALERIA.NC); }
+                }},
             ],
             locale: "pt-br",
             langs: {
