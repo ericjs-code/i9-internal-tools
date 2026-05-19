@@ -6,7 +6,7 @@ from unittest.mock import patch
 from usuarios.models import CustomUser
 from .forms import AtendimentoChamadoForm, ChamadoForm
 from .models import Chamado
-from .services import abrir_chamado, atualizar_atendimento
+from .services import abrir_chamado, atualizar_atendimento, fechar_chamados_resolvidos_sem_feedback
 
 
 class ChamadoModelTests(TestCase):
@@ -53,6 +53,21 @@ class ChamadoModelTests(TestCase):
         chamado.save()
 
         self.assertIsNone(chamado.data_fechamento)
+
+    def test_registra_data_resolucao_quando_chamado_e_resolvido(self):
+        chamado = Chamado.objects.create(
+            solicitante=self.user,
+            titulo='Problema resolvido',
+            descricao='Descricao objetiva',
+            categoria='HARDWARE',
+            prioridade='BAIXA',
+            setor='T.I',
+            status='RESOLVIDO',
+            solucao='Solucao aplicada',
+        )
+
+        self.assertIsNotNone(chamado.data_resolucao)
+        self.assertTrue(timezone.is_aware(chamado.data_resolucao))
 
 
 class ChamadoUploadTests(TestCase):
@@ -184,3 +199,54 @@ class ChamadoServiceTests(TestCase):
 
         self.assertEqual(atualizado.tecnico, self.novo_tecnico)
         delay.assert_called_once_with(chamado.id, 'RESOLVIDO')
+
+    def test_fecha_automaticamente_chamado_resolvido_sem_feedback_apos_tres_dias(self):
+        chamado = Chamado.objects.create(
+            solicitante=self.user,
+            tecnico=self.tecnico,
+            titulo='Aguardando validacao',
+            descricao='Chamado resolvido',
+            categoria='HARDWARE',
+            prioridade='MEDIA',
+            setor='T.I',
+            status='RESOLVIDO',
+            solucao='Equipamento substituido',
+        )
+        Chamado.objects.filter(pk=chamado.pk).update(
+            data_resolucao=timezone.now() - timezone.timedelta(days=3, minutes=1)
+        )
+
+        with patch('ti.services.task_notificar_chamado.delay') as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                fechados = fechar_chamados_resolvidos_sem_feedback()
+
+        chamado.refresh_from_db()
+        self.assertEqual(fechados, [chamado.id])
+        self.assertEqual(chamado.status, 'CONCLUIDO')
+        self.assertFalse(chamado.validado_pelo_solicitante)
+        self.assertTrue(chamado.encerrado_automaticamente)
+        self.assertIsNotNone(chamado.data_fechamento)
+        delay.assert_called_once_with(chamado.id, 'CONCLUSAO_AUTOMATICA')
+
+    def test_nao_fecha_chamado_resolvido_dentro_do_prazo_de_feedback(self):
+        chamado = Chamado.objects.create(
+            solicitante=self.user,
+            tecnico=self.tecnico,
+            titulo='Resolvido recentemente',
+            descricao='Chamado resolvido',
+            categoria='HARDWARE',
+            prioridade='MEDIA',
+            setor='T.I',
+            status='RESOLVIDO',
+            solucao='Equipamento substituido',
+        )
+        Chamado.objects.filter(pk=chamado.pk).update(
+            data_resolucao=timezone.now() - timezone.timedelta(days=2, hours=23)
+        )
+
+        fechados = fechar_chamados_resolvidos_sem_feedback()
+
+        chamado.refresh_from_db()
+        self.assertEqual(fechados, [])
+        self.assertEqual(chamado.status, 'RESOLVIDO')
+        self.assertFalse(chamado.encerrado_automaticamente)

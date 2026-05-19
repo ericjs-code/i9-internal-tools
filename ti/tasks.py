@@ -26,6 +26,18 @@ def task_notificar_chamado(self, chamado_id, tipo):
         raise self.retry(exc=exc)
 
 
+@shared_task(bind=True, max_retries=2, default_retry_delay=300)
+def task_fechar_chamados_resolvidos_sem_feedback(self):
+    try:
+        from .services import fechar_chamados_resolvidos_sem_feedback
+
+        chamados_fechados = fechar_chamados_resolvidos_sem_feedback()
+        return f"{len(chamados_fechados)} chamados fechados automaticamente."
+    except Exception as exc:
+        logger.error("Erro ao fechar chamados sem feedback: %s", exc, exc_info=True)
+        raise self.retry(exc=exc)
+
+
 def enviar_notificacao_usuario(chamado, tipo):
     webhook_user_url = getattr(settings, 'POWER_AUTOMATE_USER_WEBHOOK_URL', '')
     if not webhook_user_url:
@@ -122,5 +134,11 @@ def _mensagem_usuario(chamado, tipo):
         )
     if tipo == 'CONCLUSAO':
         return "Chamado Concluido", f"Atendimento validado e encerrado.\nSolucao: {chamado.solucao}"
+    if tipo == 'CONCLUSAO_AUTOMATICA':
+        return (
+            "Chamado Concluido Automaticamente",
+            "O chamado foi encerrado automaticamente apos 3 dias sem retorno de validacao do solicitante."
+            f"\nSolucao: {chamado.solucao}",
+        )
 
     return mensagens.get(tipo, ("Atualizacao no Chamado", f"O status do seu chamado mudou para: {chamado.get_status_display()}"))

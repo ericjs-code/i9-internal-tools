@@ -1,7 +1,11 @@
 from django.db import transaction
+from django.utils import timezone
 
 from .models import Chamado, ChamadoImagem
 from .tasks import task_notificar_chamado
+
+
+FECHAMENTO_AUTOMATICO_DIAS = 3
 
 
 def abrir_chamado(*, form, solicitante):
@@ -67,6 +71,32 @@ def recusar_resolucao(*, chamado):
     chamado.save()
     _notificar_se_status_mudou(chamado.id, status_anterior, chamado.status)
     return chamado
+
+
+def fechar_chamados_resolvidos_sem_feedback(*, referencia=None, dias_sem_feedback=FECHAMENTO_AUTOMATICO_DIAS):
+    referencia = referencia or timezone.now()
+    limite = referencia - timezone.timedelta(days=dias_sem_feedback)
+
+    chamados_elegiveis = Chamado.objects.filter(
+        status='RESOLVIDO',
+        validado_pelo_solicitante=False,
+        encerrado_automaticamente=False,
+        data_resolucao__lte=limite,
+    ).only('id', 'status', 'validado_pelo_solicitante', 'encerrado_automaticamente', 'solucao', 'data_resolucao')
+
+    chamados_fechados = []
+    with transaction.atomic():
+        for chamado in chamados_elegiveis.select_for_update():
+            chamado.status = 'CONCLUIDO'
+            chamado.encerrado_automaticamente = True
+            chamado.full_clean()
+            chamado.save(update_fields=['status', 'encerrado_automaticamente', 'data_fechamento'])
+            chamados_fechados.append(chamado.id)
+
+    for chamado_id in chamados_fechados:
+        _agendar_notificacao(chamado_id, 'CONCLUSAO_AUTOMATICA')
+
+    return chamados_fechados
 
 
 def _notificar_se_status_mudou(chamado_id, status_anterior, status_atual):

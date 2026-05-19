@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 import mimetypes
 from pathlib import Path
+from celery.schedules import crontab
 from django.conf.global_settings import USE_THOUSAND_SEPARATOR, EMAIL_HOST_PASSWORD
 from dotenv import load_dotenv
 import ssl
@@ -204,6 +205,12 @@ else:
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'America/Sao_Paulo'
+CELERY_BEAT_SCHEDULE = {
+    'ti-fechar-chamados-resolvidos-sem-feedback': {
+        'task': 'ti.tasks.task_fechar_chamados_resolvidos_sem_feedback',
+        'schedule': crontab(hour=1, minute=0),
+    },
+}
 
 
 # --- Integracoes externas ---

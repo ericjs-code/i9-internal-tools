@@ -80,18 +80,38 @@ class Chamado(models.Model):
     setor = models.CharField(max_length=50, choices=SETORES, default='')
 
     data_abertura = models.DateTimeField(auto_now_add=True)
+    data_resolucao = models.DateTimeField(null=True, blank=True)
     data_fechamento = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=25, choices=STATUS, default='NOVO')
     solucao = models.TextField(verbose_name='Solucao Utilizada', blank=True)
     validado_pelo_solicitante = models.BooleanField(default=False)
+    encerrado_automaticamente = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=['status', 'validado_pelo_solicitante', 'encerrado_automaticamente', 'data_resolucao'],
+                name='ti_chamado_auto_close_idx',
+            ),
+        ]
 
     def clean(self):
-        if self.status == 'CONCLUIDO' and not self.validado_pelo_solicitante:
+        if (
+            self.status == 'CONCLUIDO'
+            and not self.validado_pelo_solicitante
+            and not self.encerrado_automaticamente
+        ):
             raise ValidationError({'status': 'O chamado nao pode ser encerrado sem validacao do solicitante.'})
         if self.status in ['RESOLVIDO', 'CONCLUIDO'] and not self.solucao:
             raise ValidationError({'solucao': 'Descreva a solucao tecnica utilizada.'})
 
     def save(self, *args, **kwargs):
+        if self.status == 'RESOLVIDO' and not self.data_resolucao:
+            self.data_resolucao = timezone.now()
+        elif self.status not in ['RESOLVIDO', 'CONCLUIDO']:
+            self.data_resolucao = None
+            self.encerrado_automaticamente = False
+
         if self.status == 'CONCLUIDO' and not self.data_fechamento:
             self.data_fechamento = timezone.now()
         elif self.status != 'CONCLUIDO':
