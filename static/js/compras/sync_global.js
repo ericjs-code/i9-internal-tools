@@ -61,25 +61,29 @@ function iniciarSincronizacao(urlSync, csrfToken) {
 }
 
 function monitorarStatus(taskId) {
-    const checkInterval = setInterval(() => {
+    // Usamos setTimeout recursivo em vez de setInterval
+    const checkStatus = () => {
         fetch(`/compras/checar-status-sync/${taskId}/`)
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'SUCCESS') {
-                    clearInterval(checkInterval);
                     Swal.fire({
                         title: 'Sucesso!',
-                        text: 'Dados atualizados. A página será recarregada.',
-                        icon: 'success',
-                        confirmButtonColor: '#198754'
+                        text: 'Dados atualizados.',
+                        icon: 'success'
                     }).then(() => location.reload());
                 } else if (data.status === 'FAILURE') {
-                    clearInterval(checkInterval);
-                    Swal.fire('Erro no Processamento', 'Ocorreu uma falha no pipeline (ETL) do Protheus.', 'error');
+                    Swal.fire('Erro', 'O processamento falhou no servidor.', 'error');
+                } else {
+                    // Tenta novamente em 3 segundos, apenas se o processo ainda estiver vivo
+                    setTimeout(checkStatus, 3000);
                 }
             })
             .catch(error => {
                 console.error("Erro no Polling:", error);
+                // Em caso de erro de rede, podemos parar ou tentar poucas vezes
             });
-    }, 3000);
+    };
+    // Inicia a primeira chamada
+    checkStatus();
 }

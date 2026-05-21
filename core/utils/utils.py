@@ -10,3 +10,6 @@ def convert_hours(valor_excel):
         return timedelta(hours=int(partes[0]), minutes=int(partes[1]), seconds=int(partes[2]))
     except Exception:
         return None
+
+def formata_dt(data_obj):
+    return data_obj.strftime('%d/%m/%Y') if data_obj else '-'

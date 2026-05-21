@@ -1,24 +1,25 @@
 import csv
 from django.http import HttpResponse
+from core.utils.utils import formata_dt
+
+
+def _configurar_response(filename):
+    """Auxiliar privado para padronizar o cabeçalho HTTP"""
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.write(u'\ufeff'.encode('utf8'))  # BOM para Excel
+    return response
+
 
 def gerar_csv_operacoes_compras(queryset):
-    """
-    Recebe um queryset PRONTO E FILTRADO e devolve o CSV.
-    Não sabe o que é request, não faz queries novas.
-    """
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="fila_operacional_compras.csv"'
-    response.write(u'\ufeff'.encode('utf8'))
-
+    response = _configurar_response("fila_operacional_compras.csv")
     writer = csv.writer(response, delimiter=';')
+
     writer.writerow([
         'SC', 'Item', 'Produto', 'Descricao', 'Projeto', 'Tarefa',
         'Fornecedor', 'Status', 'Emissao SC',
         'Qtd Solicitada', 'Qtd Comprada', 'Qtd Entregue', 'Resíduo'
     ])
-
-    def formata_dt(data_obj):
-        return data_obj.strftime('%d/%m/%Y') if data_obj else '-'
 
     for op in queryset:
         writer.writerow([
@@ -26,17 +27,13 @@ def gerar_csv_operacoes_compras(queryset):
             op.nome_fornecedor, op.status_operacional, formata_dt(op.emissao_sc),
             op.qtd_solicitada, op.qtd_pedida, op.qtd_recebida, op.residuo
         ])
-
     return response
 
 
 def gerar_csv_gerencial_compras(queryset):
-
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="base_completa_compras.csv"'
-    response.write(u'\ufeff'.encode('utf8'))
-
+    response = _configurar_response("base_completa_compras.csv")
     writer = csv.writer(response, delimiter=';')
+
     writer.writerow([
         'Filial', 'Num_SC', 'Emissao_SC', 'Cod_Produto', 'Descricao',
         'Projeto_Cod', 'Tarefa_Cod', 'Num_Pedido', 'Emissao_Pedido',
@@ -45,9 +42,6 @@ def gerar_csv_gerencial_compras(queryset):
         'Valor_Unitario', 'Valor_Total', 'LeadTime_Compras',
         'LeadTime_Fornecedor', 'Dias_Atraso_Entrega'
     ])
-
-    def formata_dt(data_obj):
-        return data_obj.strftime('%d/%m/%Y') if data_obj else '-'
 
     for obj in queryset:
         writer.writerow([
@@ -58,22 +52,4 @@ def gerar_csv_gerencial_compras(queryset):
             obj.qtd_pedido, obj.qtd_recebida, obj.valor_unitario, obj.valor_total,
             obj.leadtime_compras, obj.leadtime_fornecedor, obj.dias_atraso_entrega
         ])
-    return response
-
-def gerar_csv_ranking_fornecedores(ranking):
-    """
-    Recebe a lista de dicionários do ranking processado e devolve o CSV.
-    Não faz queries no banco, apenas formata e exporta.
-    """
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="ranking_fornecedores.csv"'
-    response.write(u'\ufeff'.encode('utf8'))
-
-    writer = csv.writer(response, delimiter=';')
-    writer.writerow(['Fornecedor', 'Quantidade de Avaliações', 'Nota Final (Mediana)'])
-
-    for item in ranking:
-        nota_str = str(round(item['mediana'], 1)).replace('.', ',')
-        writer.writerow([item['fornecedor'], item['qtd_avaliacoes'], nota_str])
-
     return response

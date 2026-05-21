@@ -5,9 +5,11 @@ from django.core.cache import cache
 from celery.result import AsyncResult
 from django.db.models import Avg, Count, Q, Sum
 from django.http import JsonResponse
+
+from compras.services.business import ComprasBusinessService
+from compras.services.csv_exporters import gerar_csv_operacoes_compras, gerar_csv_gerencial_compras
 from .models import DataWarehouseCompras
 from django.views.decorators.http import require_POST
-from .services import gerar_csv_operacoes_compras, gerar_csv_gerencial_compras, gerar_csv_ranking_fornecedores
 from .task import task_sincronizar_protheus
 from django.db import transaction
 from django.db.models import Exists, OuterRef
@@ -211,6 +213,36 @@ def dashboard_operacional(request):
 
 @login_required(login_url='/login/')
 @exige_permissao(['compras'])
+def dashboard_avaliacoes(request):
+    """
+    Dashboard de Análise de Desempenho.
+    View limpa, focada apenas em orquestração e contexto.
+    """
+    # Delega a lógica de negócio pesada para o Service Layer
+    ranking_data = ComprasBusinessService.processar_ranking_fornecedores()
+
+    # Preparação para o Chart.js (apenas formatação visual)
+    labels = [r['fornecedor'][:20] + "..." if len(r['fornecedor']) > 20 else r['fornecedor'] for r in ranking_data]
+    medians = [r['mediana'] for r in ranking_data]
+
+    # Lógica de cores mantida, mas agora o 'risco' já vem calculado do serviço
+    cores = ['#dc3545' if r['risco'] else '#0d6efd' for r in ranking_data]
+
+    context = {
+        'ranking': ranking_data,
+        'total_avaliacoes': sum(r['qtd_avaliacoes'] for r in ranking_data),
+        'fornecedores_avaliados': len(ranking_data),
+        'fornecedores_risco': sum(1 for r in ranking_data if r['risco']),
+        'chart_labels': json.dumps(labels),
+        'chart_data': json.dumps(medians),
+        'chart_colors': json.dumps(cores),
+    }
+
+    return render(request, 'compras/avaliacoes/dashboard_avaliacoes.html', context)
+
+
+@login_required(login_url='/login/')
+@exige_permissao(['compras'])
 @require_POST
 def atualizar_dados_dw(request):
     if cache.get('lock_sync_compras'):
@@ -405,73 +437,8 @@ def nova_avaliacao_fornecedor(request, numero_pedido):
     return render(request, 'compras/avaliacoes/form_avaliacao.html', context)
 
 
-
-@login_required(login_url='/login/')
-@exige_permissao(['compras'])
-def dashboard_avaliacoes(request):
-    """
-    Dashboard de Análise de Desempenho dos Fornecedores.
-    Calcula a mediana das notas e identifica fornecedores abaixo do corte de 8.0.
-    """
-    # Busca todas as avaliações e faz um "join" com as respostas para otimizar o banco
-    avaliacoes = AvaliacaoFornecedor.objects.prefetch_related('respostas').all()
-
-    fornecedores_data = {}
-
-    # Agrupamento de dados por Fornecedor
-    for aval in avaliacoes:
-        fornecedor = aval.nome_fornecedor
-        if fornecedor not in fornecedores_data:
-            fornecedores_data[fornecedor] = {'notas_avaliacoes': [], 'qtd_avaliacoes': 0}
-
-        fornecedores_data[fornecedor]['qtd_avaliacoes'] += 1
-
-        notas_aval = [resp.nota for resp in aval.respostas.all()]
-        if notas_aval:
-            media_do_pedido = sum(notas_aval) / len(notas_aval)
-            fornecedores_data[fornecedor]['notas_avaliacoes'].append(media_do_pedido)
-
-    ranking = []
-    fornecedores_risco = 0
-    nota_corte = 8.0
-
-    # Processamento Estatístico (Mediana das Médias)
-    for f_nome, data in fornecedores_data.items():
-        mediana_final = statistics.median(data['notas_avaliacoes']) if data['notas_avaliacoes'] else 0
-        abaixo_corte = mediana_final < nota_corte
-
-        if abaixo_corte:
-            fornecedores_risco += 1
-
-        ranking.append({
-            'fornecedor': f_nome,
-            'mediana': mediana_final,
-            'qtd_avaliacoes': data['qtd_avaliacoes'],
-            'risco': abaixo_corte
-        })
-
-    # Ordenar ranking: Menores notas primeiro (para destacar os piores)
-    ranking.sort(key=lambda x: (x['mediana'], -x['qtd_avaliacoes']))
-
-    # Preparação dos dados para o Gráfico (Chart.js)
-    labels = [r['fornecedor'][:20] + "..." if len(r['fornecedor']) > 20 else r['fornecedor'] for r in ranking]
-    medians = [r['mediana'] for r in ranking]
-
-    # Cores: Vermelho para < 8.0, Azul para >= 8.0
-    cores = ['#dc3545' if r['risco'] else '#0d6efd' for r in ranking]
-
-    context = {
-        'ranking': ranking,
-        'total_avaliacoes': avaliacoes.count(),
-        'fornecedores_avaliados': len(ranking),
-        'fornecedores_risco': fornecedores_risco,
-        'chart_labels': json.dumps(labels),
-        'chart_data': json.dumps(medians),
-        'chart_colors': json.dumps(cores),
-        'nota_corte': nota_corte
-    }
-
-    return render(request, 'compras/avaliacoes/dashboard_avaliacoes.html', context)
+def gerar_csv_ranking_fornecedores(ranking):
+    pass
 
 
 @login_required(login_url='/login/')
