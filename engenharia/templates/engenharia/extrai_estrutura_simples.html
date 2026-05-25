@@ -20,8 +20,11 @@
                 Esta rotina conecta-se ao servidor Totvs via SFTP, extrai as tabelas de estrutura de produtos (SG1 e SB1), processa as regras de negócio e atualiza a base de dados interna do portal.
             </p>
             <form method="POST" action="{% url 'atualizar_banco_estrutura' %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-primary px-4 py-2" style="background-color: var(--azul-principal); border: none;">
+                <button type="button" class="btn btn-primary px-4 py-2 btn-sync-global shadow-sm"
+                    style="background-color: var(--azul-principal); border: none;"
+                    data-url="{% url 'atualizar_banco_estrutura' %}"
+                    data-check-url="{% url 'checar_status_sync' task_id='TASK_ID_PLACEHOLDER' %}"
+                    data-csrf="{{ csrf_token }}">
                     <i class="bi bi-arrow-repeat me-2"></i> Atualizar Base de Dados
                 </button>
             </form>

@@ -21,6 +21,7 @@
         <div>
             <button class="btn btn-primary btn-sync-global shadow-sm"
                 data-url="{% url 'atualizar_dados_dw' %}"
+                data-check-url="{% url 'checar_status_sync' task_id='TASK_ID_PLACEHOLDER' %}"
                 data-csrf="{{ csrf_token }}">
                 <i class="bi bi-arrow-clockwise me-2"></i> Sincronizar Protheus
             </button>

@@ -264,18 +264,6 @@ def atualizar_dados_dw(request):
 
 
 @login_required(login_url='/login/')
-def checar_status_sync(request, task_id):
-    """
-    Rota chamada via AJAX pelo frontend para checar se o Celery terminou.
-    """
-    task_result = AsyncResult(task_id)
-    return JsonResponse({
-        "status": task_result.status,
-        "result": task_result.result if task_result.ready() else None
-    })
-
-
-@login_required(login_url='/login/')
 @exige_permissao(['compras'])
 def listar_pedidos_avaliacao(request):
     """
@@ -346,7 +334,6 @@ def listar_pedidos_avaliacao(request):
     }
 
     return render(request, 'compras/avaliacoes/listar_pedidos.html', context)
-
 
 
 @login_required(login_url='/login/')
@@ -437,9 +424,6 @@ def nova_avaliacao_fornecedor(request, numero_pedido):
     return render(request, 'compras/avaliacoes/form_avaliacao.html', context)
 
 
-def gerar_csv_ranking_fornecedores(ranking):
-    pass
-
 
 @login_required(login_url='/login/')
 @exige_permissao(['compras'])
@@ -475,3 +459,19 @@ def exportar_ranking_csv(request):
 
     # View delegando o trabalho sujo para a camada de serviço:
     return gerar_csv_ranking_fornecedores(ranking)
+
+
+def gerar_csv_ranking_fornecedores(ranking):
+    pass
+
+
+@login_required(login_url='/login/')
+def checar_status_sync(request, task_id):
+    """
+    Rota chamada via AJAX pelo frontend para checar se o Celery terminou.
+    """
+    task_result = AsyncResult(task_id)
+    return JsonResponse({
+        "status": task_result.status,
+        "result": task_result.result if task_result.ready() else None
+    })
