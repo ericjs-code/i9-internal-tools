@@ -2,7 +2,7 @@
 URL configuration for config project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
+    https://docs.djangoproject.com/en/5.0/topics/http/urls/
 Examples:
 Function views
     1. Add an import:  from my_app import views
@@ -54,4 +54,8 @@ urlpatterns = [
             path('reserva_sala/', include('reserva_sala.urls')),
             path('core/', include('core.urls')),
             path('rdo/', include('rdo.urls')),
+            
+            # API endpoints
+            path('api/pcp/', include('pcp.api.urls')),
+
         ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
