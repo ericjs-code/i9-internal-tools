@@ -1,0 +1,56 @@
+{% for pai in conjuntos %}
+<!-- Agrupamento de um Conjunto Pai com Alpine.js -->
+<tbody x-data="{ openPai: false, loaded: false, isLoading: false }" @htmx:after-request="isLoading = false; loaded = true">
+    <!-- Linha do Conjunto Pai -->
+    <tr class="table-secondary fw-semibold">
+        <td colspan="4" class="ps-4"
+            @click="openPai = !openPai; if(openPai && !loaded) { isLoading = true; $dispatch('load-filhos-{{ codigo_vo|slugify }}-{{ pai.codigo_pai|slugify }}'); }"
+            style="cursor: pointer;">
+
+            <div class="d-flex align-items-center">
+                <!-- Ícone animado via Alpine (Seta) -->
+                <i class="bi bi-chevron-right transition-transform me-2"
+                   x-show="!isLoading"
+                   :class="openPai ? 'bi-chevron-down' : 'bi-chevron-right'">
+                </i>
+
+                <!-- Spinner controlado pelo Alpine -->
+                <div class="spinner-border spinner-border-sm text-primary me-2"
+                     x-show="isLoading"
+                     role="status" style="display: none;">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+
+                <i class="bi bi-box-seam me-2"></i>
+                <span class="text-dark">CONJUNTO PAI: {{ pai.codigo_pai }} {% if pai.descricao_pai %}- {{ pai.descricao_pai }}{% endif %}</span>
+            </div>
+
+            <!-- Botão invisível que ouve o evento do Alpine para acionar o HTMX -->
+            <button class="d-none"
+                    hx-get="{% url 'api_get_componentes_filho' codigo_vo=codigo_vo codigo_pai=pai.codigo_pai %}{% if request.GET.busca %}?busca={{ request.GET.busca }}{% endif %}"
+                    hx-target="#filhos-target-{{ codigo_vo|slugify }}-{{ pai.codigo_pai|slugify }}"
+                    hx-swap="innerHTML"
+                    hx-trigger="load-filhos-{{ codigo_vo|slugify }}-{{ pai.codigo_pai|slugify }} from:body">
+            </button>
+        </td>
+    </tr>
+
+    <!-- Contêiner dos Filhos -->
+    <tr x-show="openPai" style="display: none;">
+        <td colspan="4" class="p-0 border-0">
+            <!-- Nova tabela interna para manter alinhamento e design limpo -->
+            <table class="table mb-0 table-hover table-borderless bg-light">
+                <tbody id="filhos-target-{{ codigo_vo|slugify }}-{{ pai.codigo_pai|slugify }}">
+                    <!-- O template _componentes_filho.html será injetado aqui pelo HTMX -->
+                </tbody>
+            </table>
+        </td>
+    </tr>
+</tbody>
+{% empty %}
+<tbody>
+    <tr>
+        <td colspan="4" class="text-center text-muted py-3">Nenhum conjunto encontrado para este projeto.</td>
+    </tr>
+</tbody>
+{% endfor %}

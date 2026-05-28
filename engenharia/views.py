@@ -7,25 +7,25 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from engenharia.services.producao_service import ProducaoQueryService
-
-
 from core.decorators import exige_permissao
-from .models import EstruturaProduto
+
 
 
 @login_required(login_url='/login/')
 @exige_permissao(['engenharia'])
 def extrai_estrutura_simples(request):
-    """View Magra: Apenas lida com Request, Paginação e Response."""
-
+    """
+    View Principal Refatorada:
+    - Busca apenas a lista paginada de projetos (VOs).
+    - Delega o carregamento dos filhos para as APIs/partials via HTMX.
+    """
     busca = request.GET.get('busca', '')
 
-    # Delega o trabalho pesado para a Camada de Serviço
-    arvore_projetos = ProducaoQueryService.construir_arvore_projetos(termo_busca=busca)
+    # 1. Busca apenas a lista de VOs (projetos)
+    lista_projetos = ProducaoQueryService.get_projetos_vo(termo_busca=busca)
 
-    # Paginação em Nível de Projeto (Paginamos as chaves do dicionário)
-    lista_projetos = list(arvore_projetos.items())
-    paginator = Paginator(lista_projetos, 1)  # 1 Projetos inteiros por página
+    # 2. Pagina o resultado de forma eficiente
+    paginator = Paginator(lista_projetos, 10)  # 10 projetos por página
     page_number = request.GET.get('page')
 
     try:
@@ -35,16 +35,57 @@ def extrai_estrutura_simples(request):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    # Reconstroi o dicionário apenas com a "fatia" da página atual
-    projetos_paginados = dict(page_obj.object_list)
-
     context = {
-        'dados_agrupados': projetos_paginados,
-        'page_obj': page_obj,
+        'page_obj': page_obj,  # O objeto de paginação agora contém os projetos
         'busca': busca
     }
 
     return render(request, 'engenharia/extrai_estrutura_simples.html', context)
+
+
+@login_required(login_url='/login/')
+@exige_permissao(['engenharia'])
+def get_conjuntos_pai(request, codigo_vo: str):
+    """
+    API/Partial View: Retorna os 'pais' de um 'vo' específico.
+    Renderiza um template parcial que será injetado pelo HTMX.
+    """
+    busca = request.GET.get('busca', '')
+
+    # Busca os conjuntos (pais) para o VO específico
+    conjuntos = ProducaoQueryService.get_conjuntos_pai(codigo_vo=codigo_vo, termo_busca=busca)
+
+    context = {
+        'codigo_vo': codigo_vo,
+        'conjuntos': conjuntos
+    }
+
+    # Este template parcial conterá apenas as linhas <tr> dos pais
+    return render(request, 'engenharia/partials/_conjuntos_pai.html', context)
+
+
+@login_required(login_url='/login/')
+@exige_permissao(['engenharia'])
+def get_componentes_filho(request, codigo_vo: str, codigo_pai: str):
+    """
+    API/Partial View: Retorna os 'filhos' de um 'pai' e 'vo' específicos.
+    Renderiza um template parcial que será injetado pelo HTMX.
+    """
+    busca = request.GET.get('busca', '')
+
+    # Busca os componentes (filhos) para o PAI/VO específico
+    componentes = ProducaoQueryService.get_componentes_filho(
+        codigo_vo=codigo_vo,
+        codigo_pai=codigo_pai,
+        termo_busca=busca
+    )
+
+    context = {
+        'componentes': componentes
+    }
+
+    # Este template parcial conterá apenas as linhas <tr> dos filhos
+    return render(request, 'engenharia/partials/_componentes_filho.html', context)
 
 
 @login_required(login_url='/login/')

@@ -1,0 +1,26 @@
+{% for filho in componentes %}
+<tr>
+    <td class="ps-5">
+        <span class="badge bg-secondary me-2">1160</span>
+        <span class="text-dark fw-bold">{{ filho.codigo_filho }}</span>
+        {% if filho.descricao_filho %}
+            <span class="text-muted small ms-1">- {{ filho.descricao_filho }}</span>
+        {% endif %}
+    </td>
+    <td>{{ filho.quantidade_necessaria_filho|floatformat:2 }}</td>
+    <td>
+        <span class="badge bg-info text-dark">{{ filho.quantidade_em_op|floatformat:2 }}</span>
+    </td>
+    <td>
+        {% if filho.falta_produzir > 0 %}
+            <span class="badge bg-danger">Faltam {{ filho.falta_produzir|floatformat:2 }}</span>
+        {% else %}
+            <span class="badge bg-success">Coberto</span>
+        {% endif %}
+    </td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="4" class="text-center text-muted ps-5 py-2 small">Nenhum componente (filho) encontrado para este conjunto.</td>
+</tr>
+{% endfor %}

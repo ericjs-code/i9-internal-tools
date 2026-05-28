@@ -17,18 +17,12 @@
     <!-- Card de sincronização -->
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-body p-4">
-
-            <h5 class="card-title fw-bold text-dark mb-3">
-                Sincronização com ERP (Protheus)
-            </h5>
-
+            <h5 class="card-title fw-bold text-dark mb-3">Sincronização com ERP (Protheus)</h5>
             <p class="text-muted mb-4">
                 Esta rotina conecta-se ao servidor Totvs via SFTP, extrai as tabelas
                 de estrutura de produtos (SG1, SB1 e SC2), processa as regras de negócio
                 e atualiza a base de dados interna do portal.
             </p>
-
-            <!-- Caso utilize JS/AJAX -->
             <button
                 type="button"
                 class="btn btn-primary px-4 py-2 btn-sync-global shadow-sm"
@@ -40,233 +34,150 @@
                 <i class="bi bi-arrow-repeat me-2"></i>
                 Atualizar Base de Dados
             </button>
-
         </div>
     </div>
 
-    <!-- Barra superior -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-
-        <h5 class="text-dark fw-bold mb-0">
-            Visualização de Estrutura
-        </h5>
-
-        <div class="d-flex gap-2">
+    <!-- Barra de Ferramentas (Busca, Paginação, Exportação) -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center p-3 gap-3">
 
             <!-- Busca -->
-            <form
-                method="GET"
-                action="{% url 'extrai_estrutura_simples' %}"
-                class="d-flex"
-            >
+            <form method="GET" action="{% url 'extrai_estrutura_simples' %}" class="d-flex flex-grow-1" style="max-width: 400px;">
                 <input
                     type="text"
                     name="busca"
                     class="form-control form-control-sm me-2"
-                    placeholder="Código ou descrição..."
+                    placeholder="Buscar em Vo, Pai ou Filho..."
                     value="{{ request.GET.busca }}"
                 >
-
-                <button
-                    type="submit"
-                    class="btn btn-sm btn-outline-secondary"
-                >
-                    <i class="bi bi-search"></i>
-                </button>
-
+                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-search"></i></button>
                 {% if request.GET.busca %}
-                    <a
-                        href="{% url 'extrai_estrutura_simples' %}"
-                        class="btn btn-sm btn-outline-danger ms-1"
-                        title="Limpar Busca"
-                    >
+                    <a href="{% url 'extrai_estrutura_simples' %}" class="btn btn-sm btn-outline-danger ms-1" title="Limpar Busca">
                         <i class="bi bi-x-lg"></i>
                     </a>
                 {% endif %}
             </form>
 
-            <!-- Exportação -->
-            {% if dados_agrupados %}
-                <a
-                    href="{% url 'exportar_estrutura_excel' %}"
-                    class="btn btn-success btn-sm shadow-sm rounded-3 d-flex align-items-center"
-                >
-                    <i class="bi bi-file-earmark-excel me-2"></i>
-                    Exportar
-                </a>
+            <!-- Paginação Moderna -->
+            {% if page_obj.paginator.num_pages > 1 %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?page=1{% if busca %}&busca={{ busca }}{% endif %}">&laquo;</a></li>
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if busca %}&busca={{ busca }}{% endif %}">Anterior</a></li>
+                        {% endif %}
+
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item"><a class="page-link" href="?page={{ num }}{% if busca %}&busca={{ busca }}{% endif %}">{{ num }}</a></li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if busca %}&busca={{ busca }}{% endif %}">Próxima</a></li>
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if busca %}&busca={{ busca }}{% endif %}">&raquo;</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
             {% endif %}
 
+            <!-- Exportação -->
+            <a href="{% url 'exportar_estrutura_excel' %}{% if busca %}?busca={{ busca }}{% endif %}" class="btn btn-success btn-sm shadow-sm rounded-3 d-flex align-items-center">
+                <i class="bi bi-file-earmark-excel me-2"></i>
+                Exportar
+            </a>
         </div>
     </div>
 
-    <!-- Card principal -->
+    <!-- Tabela de Estrutura -->
     <div class="card border-0 shadow-sm rounded-4">
-
         <div class="card-body p-0">
-
-            {% if dados_agrupados %}
-
+            {% if page_obj %}
                 <div class="table-responsive">
-
                     <table class="table table-hover align-middle mb-0">
-
                         <thead class="table-dark">
                             <tr>
-                                <th>Componente Filho</th>
+                                <th>Componente</th>
                                 <th>Necessidade Total</th>
                                 <th>Qtd em OP</th>
                                 <th>Status (Falta)</th>
                             </tr>
                         </thead>
 
-                        <tbody>
-
-                            {% for vo_cod, vo_data in dados_agrupados.items %}
-
-                                <!-- Projeto / VO -->
+                        <!-- O corpo da tabela agora é preenchido dinamicamente -->
+                        {% for vo in page_obj %}
+                            <!-- Agrupador de Projeto (VO) com Alpine.js -->
+                            <tbody x-data="{ openVo: false, loaded: false, isLoading: false }" @htmx:after-request="isLoading = false; loaded = true">
+                                <!-- Linha do Projeto (VO) -->
                                 <tr class="table-primary fw-bold">
-                                    <td colspan="4">
-                                        <i class="bi bi-folder-fill me-2"></i>
+                                    <td colspan="4"
+                                        @click="openVo = !openVo; if(openVo && !loaded) { isLoading = true; $dispatch('load-pais-{{ vo.codigo_vo|slugify }}'); }"
+                                        style="cursor: pointer;">
 
-                                        <span class="badge bg-primary me-2">
-                                            VO
-                                        </span>
+                                        <div class="d-flex align-items-center">
+                                            <!-- Ícone animado via Alpine (Seta) -->
+                                            <i class="bi bi-chevron-right transition-transform me-2"
+                                               x-show="!isLoading"
+                                               :class="openVo ? 'bi-chevron-down' : 'bi-chevron-right'">
+                                            </i>
 
-                                        PROJETO:
-                                        {{ vo_cod }}
+                                            <!-- Spinner controlado pelo Alpine -->
+                                            <div class="spinner-border spinner-border-sm text-primary me-2"
+                                                 x-show="isLoading"
+                                                 role="status" style="display: none;">
+                                                <span class="visually-hidden">Carregando...</span>
+                                            </div>
 
-                                        {% if vo_data.descricao %}
-                                            - {{ vo_data.descricao }}
-                                        {% endif %}
+                                            <i class="bi bi-folder-fill me-2"></i>
+                                            <span class="badge bg-primary me-2">VO</span>
+                                            <span>PROJETO: {{ vo.codigo_vo }} {% if vo.descricao_vo %}- {{ vo.descricao_vo }}{% endif %}</span>
+                                        </div>
+
+                                        <!-- Botão invisível que ouve o evento do Alpine para acionar o HTMX -->
+                                        <button class="d-none"
+                                                hx-get="{% url 'api_get_conjuntos_pai' codigo_vo=vo.codigo_vo %}{% if request.GET.busca %}?busca={{ request.GET.busca }}{% endif %}"
+                                                hx-target="#pais-target-{{ vo.codigo_vo|slugify }}"
+                                                hx-swap="innerHTML"
+                                                hx-trigger="load-pais-{{ vo.codigo_vo|slugify }} from:body">
+                                        </button>
                                     </td>
                                 </tr>
 
-                                {% for pai_cod, pai_data in vo_data.pais.items %}
-
-                                    <!-- Pai 1180 -->
-                                    <tr class="table-secondary fw-semibold">
-                                        <td colspan="4" class="ps-4">
-                                            <i class="bi bi-box-seam me-2"></i> CONJUNTO PAI: {{ pai_cod }} - {{ pai_data.descricao_pai }}
-                                        </td>
-                                    </tr>
-
-                                    {% for filho in pai_data.filhos %}
-
-                                        <!-- Filhos 1160 -->
-                                        <tr>
-
-                                            <td class="ps-5">
-
-                                                <span class="badge bg-secondary me-2">
-                                                    1160
-                                                </span>
-
-                                                <span class="text-muted">
-                                                    {{ filho.codigo_filho }}
-                                                </span>
-
-                                                {% if filho.descricao_filho %}
-                                                    - {{ filho.descricao_filho }}
-                                                {% endif %}
-
-                                            </td>
-
-                                            <td>{{ filho.quantidade_necessaria_filho|floatformat:2 }}</td>
-
-                                            <td>
-                                                <span class="badge bg-info">{{ filho.quantidade_em_op|floatformat:2 }}</span>
-                                            </td>
-
-                                            <td>
-                                                {% if filho.falta_produzir > 0 %}
-                                                    <span class="badge bg-danger">
-                                                        Faltam {{ filho.falta_produzir|floatformat:2 }}
-                                                    </span>
-                                                {% else %}
-                                                    <span class="badge bg-success">
-                                                        Coberto
-                                                    </span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-
-                                    {% endfor %}
-
-                                {% endfor %}
-
-                            {% endfor %}
-
-                        </tbody>
-
+                                <!-- Contêiner dos Conjuntos (Pais) -->
+                                <tr x-show="openVo" style="display: none;">
+                                    <td colspan="4" class="p-0 border-0" id="pais-target-{{ vo.codigo_vo|slugify }}">
+                                        <!-- O template _conjuntos_pai.html será injetado aqui pelo HTMX -->
+                                    </td>
+                                </tr>
+                            </tbody>
+                        {% endfor %}
                     </table>
-
                 </div>
-
-                <!-- Paginação -->
-                {% if page_obj %}
-
-                    <nav aria-label="Page navigation" class="mt-4 mb-3">
-
-                        <ul class="pagination justify-content-center">
-
-                            {% if page_obj.has_previous %}
-                                <li class="page-item">
-                                    <a
-                                        class="page-link"
-                                        href="?page={{ page_obj.previous_page_number }}{% if busca %}&busca={{ busca }}{% endif %}"
-                                    >
-                                        Anterior
-                                    </a>
-                                </li>
-                            {% endif %}
-
-                            <li class="page-item disabled">
-                                <span class="page-link">
-                                    Página {{ page_obj.number }}
-                                    de
-                                    {{ page_obj.paginator.num_pages }}
-                                </span>
-                            </li>
-
-                            {% if page_obj.has_next %}
-                                <li class="page-item">
-                                    <a
-                                        class="page-link"
-                                        href="?page={{ page_obj.next_page_number }}{% if busca %}&busca={{ busca }}{% endif %}"
-                                    >
-                                        Próximo
-                                    </a>
-                                </li>
-                            {% endif %}
-
-                        </ul>
-
-                    </nav>
-
-                {% endif %}
-
             {% else %}
-
                 <!-- Sem registros -->
                 <div class="p-5 text-center">
-
                     <i class="bi bi-inbox display-5 text-muted"></i>
-
-                    <h5 class="mt-3 text-muted">
-                        Nenhuma estrutura encontrada
-                    </h5>
-
-                    <p class="text-muted mb-0">
-                        Realize uma sincronização ou ajuste os filtros de busca.
-                    </p>
-
+                    <h5 class="mt-3 text-muted">Nenhuma estrutura encontrada</h5>
+                    <p class="text-muted mb-0">Realize uma sincronização ou ajuste os filtros de busca.</p>
                 </div>
-
             {% endif %}
-
         </div>
-
     </div>
-
 </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- HTMX para AJAX declarativo -->
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<!-- Alpine.js para interatividade local -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<style>
+    .transition-transform {
+        transition: transform 0.2s ease-in-out;
+    }
+</style>
 {% endblock %}

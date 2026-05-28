@@ -1,5 +1,6 @@
 import pandas as pd
 from django.db.models import Q
+from typing import List, Dict, Any
 
 from engenharia.models import EstruturaProduto
 
@@ -11,8 +12,74 @@ class ProducaoQueryService:
     """
 
     @classmethod
+    def get_projetos_vo(cls, termo_busca: str = None) -> List[Dict[str, Any]]:
+        """
+        Retorna a lista de Projetos (VO) únicos de forma otimizada.
+        """
+        query = EstruturaProduto.objects.all()
+
+        if termo_busca:
+            # Filtra os VOs que correspondem diretamente à busca, ou cujos filhos/pais correspondem
+            query = query.filter(
+                Q(codigo_vo__icontains=termo_busca) |
+                Q(descricao_vo__icontains=termo_busca) |
+                Q(codigo_pai__icontains=termo_busca) |
+                Q(descricao_pai__icontains=termo_busca) |
+                Q(codigo_filho__icontains=termo_busca) |
+                Q(descricao_filho__icontains=termo_busca)
+            )
+
+        # Usando values() e distinct() para otimizar a consulta
+        # para trazer apenas os projetos únicos, sem carregar todos os filhos na memória.
+        vo_queryset = query.values('codigo_vo', 'descricao_vo').distinct().order_by('codigo_vo')
+        
+        return list(vo_queryset)
+
+    @classmethod
+    def get_conjuntos_pai(cls, codigo_vo: str, termo_busca: str = None) -> List[Dict[str, Any]]:
+        """
+        Retorna a lista de Conjuntos (Pai) únicos para um Projeto (VO) específico.
+        """
+        query = EstruturaProduto.objects.filter(codigo_vo=codigo_vo)
+
+        if termo_busca:
+             query = query.filter(
+                Q(codigo_pai__icontains=termo_busca) |
+                Q(descricao_pai__icontains=termo_busca) |
+                Q(codigo_filho__icontains=termo_busca) |
+                Q(descricao_filho__icontains=termo_busca)
+             )
+
+        pai_queryset = query.values('codigo_pai', 'descricao_pai').distinct().order_by('codigo_pai')
+        return list(pai_queryset)
+
+    @classmethod
+    def get_componentes_filho(cls, codigo_vo: str, codigo_pai: str, termo_busca: str = None) -> List[Dict[str, Any]]:
+        """
+        Retorna a lista de Componentes (Filhos) para um Conjunto (Pai) e Projeto (VO) específicos.
+        """
+        query = EstruturaProduto.objects.filter(codigo_vo=codigo_vo, codigo_pai=codigo_pai)
+
+        if termo_busca:
+            query = query.filter(
+                Q(codigo_filho__icontains=termo_busca) |
+                Q(descricao_filho__icontains=termo_busca)
+            )
+
+        filho_queryset = query.values(
+            'codigo_filho', 
+            'descricao_filho',
+            'quantidade_necessaria_filho',
+            'quantidade_em_op',
+            'falta_produzir'
+        ).order_by('codigo_filho')
+        
+        return list(filho_queryset)
+
+    @classmethod
     def construir_arvore_projetos(cls, termo_busca: str = None) -> dict:
         """
+        [DEPRECATED] Mantido temporariamente por compatibilidade.
         Busca os dados no banco e constrói o dicionário aninhado (VO -> Pai -> Filho).
         Retorna um dicionário ordenado para a View.
         """
@@ -102,5 +169,3 @@ class ProducaoQueryService:
         df = df[colunas_finais]
 
         return df
-
-
