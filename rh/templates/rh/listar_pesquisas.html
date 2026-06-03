@@ -71,81 +71,23 @@
                                         <i class="bi bi-clipboard me-1"></i>Copiar Link
                                     </button>
                                 {% else %}
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPesquisa{{ p.id }}">
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPesquisaUnico"
+                                        data-nome="{{ p.ex_funcionario_nome }}"
+                                        data-setor="{{ p.get_setor_display }}"
+                                        data-tempo="{{ p.tempo_casa }}"
+                                        data-saida="{{ p.periodo_saida }}"
+                                        data-motivo="{{ p.motivo_saida|default:'Não informado' }}"
+                                        data-recomendacao="{{ p.nota_recomendacao }}"
+                                        data-lideranca="{{ p.nota_lideranca }}"
+                                        data-oportunidade="{{ p.nota_oportunidade }}"
+                                        data-reconhecimento="{{ p.nota_reconhecimento }}"
+                                        data-clima="{{ p.nota_clima }}"
+                                        data-diferente="{{ p.diferente|default:'Nenhum comentário adicional.' }}">
                                         <i class="bi bi-eye"></i> Ver Respostas
                                     </button>
                                 {% endif %}
                             </td>
                         </tr>
-
-                        {% if p.respondida or p.nota_lideranca %}
-                        <div class="modal fade" id="modalPesquisa{{ p.id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-lg modal-dialog-centered">
-                                <div class="modal-content">
-                                    <div class="modal-header border-bottom-0 pb-0">
-                                        <h5 class="modal-title fw-bold" style="color: var(--azul-principal);">
-                                            Feedback: {{ p.ex_funcionario_nome }}
-                                        </h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body pt-2 text-start">
-                                        <p class="text-muted small border-bottom pb-2 mb-3">Setor: {{ p.get_setor_display }} | Tempo de Casa: {{ p.tempo_casa }} | Saída: {{ p.periodo_saida }}</p>
-
-                                        <div class="row g-3 mb-3">
-                                            <div class="col-md-6">
-                                                <div class="p-3 bg-light rounded h-100">
-                                                    <span class="d-block small text-muted fw-bold mb-1">Motivo Principal da Saída:</span>
-                                                    <span>{{ p.motivo_saida|default:"Não informado" }}</span>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <div class="p-3 bg-light rounded h-100">
-                                                    <span class="d-block small text-muted fw-bold mb-1">NPS (Recomendaria a empresa?):</span>
-                                                    <span class="fs-5 fw-bold {% if p.nota_recomendacao >= 9 %}text-success{% elif p.nota_recomendacao >= 7 %}text-warning{% else %}text-danger{% endif %}">
-                                                        Nota: {{ p.nota_recomendacao }} / 10
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <h6 class="fw-bold mt-4 mb-2">Avaliação Interna (1 a 5)</h6>
-                                        <div class="row g-2 text-center mb-4">
-                                            <div class="col-3">
-                                                <div class="border rounded p-2">
-                                                    <div class="small text-muted">Liderança</div>
-                                                    <div class="fw-bold fs-5 text-primary">{{ p.nota_lideranca }}</div>
-                                                </div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div class="border rounded p-2">
-                                                    <div class="small text-muted">Oportunidades</div>
-                                                    <div class="fw-bold fs-5 text-primary">{{ p.nota_oportunidade }}</div>
-                                                </div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div class="border rounded p-2">
-                                                    <div class="small text-muted">Reconhecimento</div>
-                                                    <div class="fw-bold fs-5 text-primary">{{ p.nota_reconhecimento }}</div>
-                                                </div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div class="border rounded p-2">
-                                                    <div class="small text-muted">Clima</div>
-                                                    <div class="fw-bold fs-5 text-primary">{{ p.nota_clima }}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <h6 class="fw-bold mb-2">O que faria de diferente se fosse o Diretor/Gestor?</h6>
-                                        <div class="p-3 border rounded bg-light" style="white-space: pre-wrap; font-size: 0.95rem;">{{ p.diferente|default:"Nenhum comentário adicional." }}</div>
-                                    </div>
-                                    <div class="modal-footer border-top-0">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endif %}
                         {% empty %}
                         <tr>
                             <td colspan="5" class="text-center py-5 text-muted">Nenhuma pesquisa gerada até o momento.</td>
@@ -153,6 +95,74 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Único Dinâmico -->
+<div class="modal fade" id="modalPesquisaUnico" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold" style="color: var(--azul-principal);">
+                    Feedback: <span id="modal-nome"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2 text-start">
+                <p class="text-muted small border-bottom pb-2 mb-3">Setor: <span id="modal-setor"></span> | Tempo de Casa: <span id="modal-tempo"></span> | Saída: <span id="modal-saida"></span></p>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded h-100">
+                            <span class="d-block small text-muted fw-bold mb-1">Motivo Principal da Saída:</span>
+                            <span id="modal-motivo"></span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded h-100">
+                            <span class="d-block small text-muted fw-bold mb-1">NPS (Recomendaria a empresa?):</span>
+                            <span class="fs-5 fw-bold" id="modal-recomendacao-container">
+                                Nota: <span id="modal-recomendacao"></span> / 10
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold mt-4 mb-2">Avaliação Interna (1 a 5)</h6>
+                <div class="row g-2 text-center mb-4">
+                    <div class="col-3">
+                        <div class="border rounded p-2">
+                            <div class="small text-muted">Liderança</div>
+                            <div class="fw-bold fs-5 text-primary" id="modal-lideranca"></div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="border rounded p-2">
+                            <div class="small text-muted">Oportunidades</div>
+                            <div class="fw-bold fs-5 text-primary" id="modal-oportunidade"></div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="border rounded p-2">
+                            <div class="small text-muted">Reconhecimento</div>
+                            <div class="fw-bold fs-5 text-primary" id="modal-reconhecimento"></div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="border rounded p-2">
+                            <div class="small text-muted">Clima</div>
+                            <div class="fw-bold fs-5 text-primary" id="modal-clima"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold mb-2">O que faria de diferente se fosse o Diretor/Gestor?</h6>
+                <div class="p-3 border rounded bg-light" id="modal-diferente" style="white-space: pre-wrap; font-size: 0.95rem;"></div>
+            </div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>
@@ -178,5 +188,44 @@ function copiarLink(btn) {
         alert('Erro ao copiar o link. Tente manualmente.');
     });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    var modalPesquisa = document.getElementById('modalPesquisaUnico');
+    if (modalPesquisa) {
+        modalPesquisa.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget; // Botão que acionou o modal
+
+            // Atualiza os textos simples
+            modalPesquisa.querySelector('#modal-nome').textContent = button.getAttribute('data-nome');
+            modalPesquisa.querySelector('#modal-setor').textContent = button.getAttribute('data-setor');
+            modalPesquisa.querySelector('#modal-tempo').textContent = button.getAttribute('data-tempo');
+            modalPesquisa.querySelector('#modal-saida').textContent = button.getAttribute('data-saida');
+            modalPesquisa.querySelector('#modal-motivo').textContent = button.getAttribute('data-motivo');
+
+            var recomendacao = parseInt(button.getAttribute('data-recomendacao'));
+            modalPesquisa.querySelector('#modal-recomendacao').textContent = isNaN(recomendacao) ? '-' : recomendacao;
+
+            modalPesquisa.querySelector('#modal-lideranca').textContent = button.getAttribute('data-lideranca');
+            modalPesquisa.querySelector('#modal-oportunidade').textContent = button.getAttribute('data-oportunidade');
+            modalPesquisa.querySelector('#modal-reconhecimento').textContent = button.getAttribute('data-reconhecimento');
+            modalPesquisa.querySelector('#modal-clima').textContent = button.getAttribute('data-clima');
+            modalPesquisa.querySelector('#modal-diferente').textContent = button.getAttribute('data-diferente');
+
+            // Atualiza cor do NPS
+            var npsContainer = modalPesquisa.querySelector('#modal-recomendacao-container');
+            npsContainer.classList.remove('text-success', 'text-warning', 'text-danger');
+
+            if (!isNaN(recomendacao)) {
+                if (recomendacao >= 9) {
+                    npsContainer.classList.add('text-success');
+                } else if (recomendacao >= 7) {
+                    npsContainer.classList.add('text-warning');
+                } else {
+                    npsContainer.classList.add('text-danger');
+                }
+            }
+        });
+    }
+});
 </script>
 {% endblock %}
