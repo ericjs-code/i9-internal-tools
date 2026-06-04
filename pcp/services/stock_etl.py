@@ -29,7 +29,7 @@ class PCPEstoqueETLService(ProtheusBaseETL):
             if dataframe is not None and not dataframe.empty
         ]
         if not dataframes:
-            logger.warning("[%s] Nenhuma movimentacao valida foi processada.", cls.__name__)
+            logger.warning("[%s] Nenhuma movimentação válida foi processada.", cls.__name__)
             return False
 
         colunas_chave = [
@@ -136,11 +136,11 @@ class PCPEstoqueETLService(ProtheusBaseETL):
     @staticmethod
     def _possui_colunas(*, dataframe: pd.DataFrame | None, colunas: list[str], origem: str) -> bool:
         if dataframe is None:
-            logger.warning("Arquivo %s nao foi disponibilizado para o ETL do PCP.", origem)
+            logger.warning("Arquivo %s não foi disponibilizado para o ETL do PCP.", origem)
             return False
         faltantes = set(colunas) - set(dataframe.columns)
         if faltantes:
-            logger.warning("Arquivo %s sem colunas obrigatorias: %s", origem, sorted(faltantes))
+            logger.warning("Arquivo %s sem colunas obrigatórias: %s", origem, sorted(faltantes))
             return False
         return True
 

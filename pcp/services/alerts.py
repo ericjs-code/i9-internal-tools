@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 from hashlib import sha256
 from typing import Iterable
@@ -9,13 +10,15 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import Q
 from django.utils import timezone
 
 from pcp.models import (
+    MARCOS_ALERTA_PREVENTIVA,
     PcpAlertaEnviado,
     PcpDowntime,
     PcpParametroAlerta,
+    PcpProgramacaoAlertaManutencao,
     PcpProgramacaoManutencao,
     StatusAlerta,
     StatusManutencao,
@@ -24,30 +27,101 @@ from pcp.models import (
 from pcp.services.downtime import DowntimeService
 
 
+logger = logging.getLogger(__name__)
+
+
 class AlertaManutencaoService:
+    @staticmethod
+    def sincronizar_programacao(
+        *,
+        programacao: PcpProgramacaoManutencao,
+        referencia: date | None = None,
+    ) -> int:
+        referencia = referencia or timezone.localdate()
+        destinatarios = AlertaManutencaoService._destinatarios_preventiva()
+        if not destinatarios:
+            logger.warning("PCP_MAINTENANCE_ALERT_RECIPIENTS não possui destinatários válidos.")
+            return 0
+
+        destinatarios_texto = ",".join(destinatarios)
+        criados = 0
+        with transaction.atomic():
+            programacao = PcpProgramacaoManutencao.all_objects.select_for_update().get(pk=programacao.pk)
+            agendamentos = PcpProgramacaoAlertaManutencao.all_objects.select_for_update().filter(
+                programacao=programacao,
+                ativo=True,
+            )
+
+            if not programacao.ativo or programacao.status != StatusManutencao.PLANEJADA:
+                agendamentos.exclude(status=StatusAlerta.ENVIADO).update(
+                    ativo=False,
+                    status=StatusAlerta.CANCELADO,
+                    updated_at=timezone.now(),
+                )
+                return 0
+
+            datas_esperadas = {
+                marco: programacao.data_prevista - timedelta(days=marco) for marco in MARCOS_ALERTA_PREVENTIVA
+            }
+            for agendamento in agendamentos:
+                data_esperada = datas_esperadas.get(agendamento.dias_antecedencia)
+                if (
+                    data_esperada != agendamento.data_disparo
+                    or agendamento.destinatarios != destinatarios_texto
+                ):
+                    agendamento.ativo = False
+                    agendamento.status = StatusAlerta.CANCELADO
+                    agendamento.save(update_fields=["ativo", "status", "updated_at"])
+
+            for marco, data_disparo in datas_esperadas.items():
+                if data_disparo < referencia:
+                    continue
+                _, criado = PcpProgramacaoAlertaManutencao.objects.get_or_create(
+                    programacao=programacao,
+                    dias_antecedencia=marco,
+                    destinatarios=destinatarios_texto,
+                    defaults={"data_disparo": data_disparo},
+                )
+                criados += int(criado)
+
+        return criados
+
+    @staticmethod
+    def sincronizar_alertas_preventivos(*, referencia: date | None = None) -> int:
+        referencia = referencia or timezone.localdate()
+        total = 0
+        programacoes = PcpProgramacaoManutencao.objects.filter(status=StatusManutencao.PLANEJADA)
+        for programacao in programacoes.iterator(chunk_size=200):
+            total += AlertaManutencaoService.sincronizar_programacao(
+                programacao=programacao,
+                referencia=referencia,
+            )
+        return total
+
     @staticmethod
     def enviar_alertas_preventivas(*, referencia: date | None = None) -> int:
         referencia = referencia or timezone.localdate()
+        AlertaManutencaoService.sincronizar_alertas_preventivos(referencia=referencia)
         total_enviados = 0
-
-        for parametro in PcpParametroAlerta.objects.filter(alertar_preventiva=True).iterator(chunk_size=200):
-            limite = referencia + timedelta(days=parametro.dias_antecedencia)
-            programacoes = AlertaManutencaoService._programacoes_elegiveis(parametro=parametro).filter(
-                data_prevista__gte=referencia,
-                data_prevista__lte=limite,
-                status=StatusManutencao.PLANEJADA,
+        agendamentos = (
+            PcpProgramacaoAlertaManutencao.objects.select_related("programacao__plano__ativo_pcp")
+            .filter(
+                data_disparo__lte=referencia,
+                status__in=[StatusAlerta.PENDENTE, StatusAlerta.FALHA],
+                programacao__status=StatusManutencao.PLANEJADA,
+                programacao__ativo=True,
             )
-            destinatarios = AlertaManutencaoService._parse_emails(parametro.emails_destino)
-            for programacao in programacoes.iterator(chunk_size=200):
-                total_enviados += int(
-                    AlertaManutencaoService._enviar_email_preventiva(
-                        parametro=parametro,
-                        programacao=programacao,
-                        destinatarios=destinatarios,
-                        data_referencia=referencia,
-                    )
-                )
-
+            .order_by("data_disparo", "id")
+        )
+        falhas = 0
+        for agendamento in agendamentos.iterator(chunk_size=200):
+            try:
+                total_enviados += int(AlertaManutencaoService._enviar_email_preventiva(agendamento=agendamento))
+            except Exception:
+                falhas += 1
+                logger.exception("Falha ao enviar alerta preventivo PCP id=%s.", agendamento.pk)
+        if falhas:
+            raise RuntimeError(f"Falha no envio de {falhas} alerta(s) preventivo(s) PCP.")
         return total_enviados
 
     @staticmethod
@@ -74,13 +148,8 @@ class AlertaManutencaoService:
         return total_enviados
 
     @staticmethod
-    def _programacoes_elegiveis(parametro: PcpParametroAlerta) -> QuerySet[PcpProgramacaoManutencao]:
-        query = PcpProgramacaoManutencao.objects.select_related("plano__ativo_pcp", "plano__ativo_pcp__area")
-        if parametro.ativo_pcp_id:
-            return query.filter(plano__ativo_pcp=parametro.ativo_pcp)
-        if parametro.area_id:
-            return query.filter(plano__ativo_pcp__area=parametro.area)
-        return query
+    def _destinatarios_preventiva() -> list[str]:
+        return AlertaManutencaoService._parse_emails(",".join(settings.PCP_MAINTENANCE_ALERT_RECIPIENTS))
 
     @staticmethod
     def _parse_emails(emails_destino: str) -> list[str]:
@@ -98,32 +167,59 @@ class AlertaManutencaoService:
         return sorted(set(destinatarios))
 
     @staticmethod
-    def _enviar_email_preventiva(
-        *,
-        parametro: PcpParametroAlerta,
-        programacao: PcpProgramacaoManutencao,
-        destinatarios: Iterable[str],
-        data_referencia: date,
-    ) -> bool:
+    def _enviar_email_preventiva(*, agendamento: PcpProgramacaoAlertaManutencao) -> bool:
+        programacao = agendamento.programacao
         ativo = programacao.plano.ativo_pcp
-        assunto = f"[PCP] Preventiva programada - {ativo.codigo}"
+        destinatarios = AlertaManutencaoService._parse_emails(agendamento.destinatarios)
+        assunto = f"[PCP] Manutenção em {agendamento.dias_antecedencia} dias - {ativo.codigo}"
         mensagem = (
-            "Existe uma manutencao preventiva programada.\n\n"
+            "Existe uma manutenção preventiva programada.\n\n"
             f"Ativo: {ativo.codigo} - {ativo.nome}\n"
             f"Plano: {programacao.plano.nome}\n"
             f"Data prevista: {programacao.data_prevista:%d/%m/%Y}\n"
+            f"Antecedência: {agendamento.dias_antecedencia} dias\n"
             f"Status: {programacao.get_status_display()}\n"
         )
-        return AlertaManutencaoService._enviar_email_idempotente(
-            tipo_alerta=TipoAlerta.PREVENTIVA,
-            parametro=parametro,
-            programacao=programacao,
-            downtime=None,
-            data_referencia=data_referencia,
-            destinatarios=destinatarios,
-            assunto=assunto,
-            mensagem=mensagem,
-        )
+        try:
+            enviado = AlertaManutencaoService._enviar_email_idempotente(
+                tipo_alerta=TipoAlerta.PREVENTIVA,
+                parametro=None,
+                programacao=programacao,
+                programacao_alerta=agendamento,
+                downtime=None,
+                data_referencia=agendamento.data_disparo,
+                destinatarios=destinatarios,
+                assunto=assunto,
+                mensagem=mensagem,
+            )
+        except Exception as exc:
+            PcpProgramacaoAlertaManutencao.all_objects.filter(pk=agendamento.pk).update(
+                status=StatusAlerta.FALHA,
+                tentativas=agendamento.tentativas + 1,
+                ultimo_erro=str(exc)[:2000],
+                updated_at=timezone.now(),
+            )
+            raise
+
+        if enviado:
+            PcpProgramacaoAlertaManutencao.all_objects.filter(pk=agendamento.pk).update(
+                status=StatusAlerta.ENVIADO,
+                tentativas=agendamento.tentativas + 1,
+                enviado_em=timezone.now(),
+                ultimo_erro="",
+                updated_at=timezone.now(),
+            )
+        elif PcpAlertaEnviado.objects.filter(
+            programacao_alerta=agendamento,
+            status=StatusAlerta.ENVIADO,
+        ).exists():
+            PcpProgramacaoAlertaManutencao.all_objects.filter(pk=agendamento.pk).update(
+                status=StatusAlerta.ENVIADO,
+                enviado_em=timezone.now(),
+                ultimo_erro="",
+                updated_at=timezone.now(),
+            )
+        return enviado
 
     @staticmethod
     def _enviar_email_downtime(
@@ -137,13 +233,14 @@ class AlertaManutencaoService:
         mensagem = (
             "Existe um downtime aberto no PCP.\n\n"
             f"Ativo: {downtime.ativo_pcp.codigo} - {downtime.ativo_pcp.nome}\n"
-            f"Inicio: {timezone.localtime(downtime.inicio):%d/%m/%Y %H:%M}\n"
+            f"Início: {timezone.localtime(downtime.inicio):%d/%m/%Y %H:%M}\n"
             f"Motivo: {downtime.motivo}\n"
         )
         return AlertaManutencaoService._enviar_email_idempotente(
             tipo_alerta=TipoAlerta.DOWNTIME_ABERTO,
             parametro=parametro,
             programacao=None,
+            programacao_alerta=None,
             downtime=downtime,
             data_referencia=data_referencia,
             destinatarios=destinatarios,
@@ -155,8 +252,9 @@ class AlertaManutencaoService:
     def _enviar_email_idempotente(
         *,
         tipo_alerta: str,
-        parametro: PcpParametroAlerta,
+        parametro: PcpParametroAlerta | None,
         programacao: PcpProgramacaoManutencao | None,
+        programacao_alerta: PcpProgramacaoAlertaManutencao | None,
         downtime: PcpDowntime | None,
         data_referencia: date,
         destinatarios: Iterable[str],
@@ -169,8 +267,8 @@ class AlertaManutencaoService:
 
         chave = AlertaManutencaoService._gerar_chave_idempotencia(
             tipo_alerta=tipo_alerta,
-            parametro_id=parametro.id,
-            objeto_id=programacao.id if programacao else downtime.id if downtime else None,
+            parametro_id=parametro.id if parametro else None,
+            objeto_id=programacao_alerta.id if programacao_alerta else downtime.id if downtime else None,
             data_referencia=data_referencia,
             destinatarios=destinatarios_normalizados,
         )
@@ -179,6 +277,7 @@ class AlertaManutencaoService:
             tipo_alerta=tipo_alerta,
             parametro=parametro,
             programacao=programacao,
+            programacao_alerta=programacao_alerta,
             downtime=downtime,
             data_referencia=data_referencia,
             destinatarios=destinatarios_normalizados,
@@ -216,8 +315,9 @@ class AlertaManutencaoService:
         *,
         chave: str,
         tipo_alerta: str,
-        parametro: PcpParametroAlerta,
+        parametro: PcpParametroAlerta | None,
         programacao: PcpProgramacaoManutencao | None,
+        programacao_alerta: PcpProgramacaoAlertaManutencao | None,
         downtime: PcpDowntime | None,
         data_referencia: date,
         destinatarios: list[str],
@@ -231,6 +331,7 @@ class AlertaManutencaoService:
                     "tipo_alerta": tipo_alerta,
                     "parametro": parametro,
                     "programacao": programacao,
+                    "programacao_alerta": programacao_alerta,
                     "downtime": downtime,
                     "data_referencia": data_referencia,
                     "destinatarios": ",".join(destinatarios),
