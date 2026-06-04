@@ -21,6 +21,10 @@ Views, endpoints e tasks nao devem alterar models diretamente quando existir um 
 - Programacoes atrasadas sao identificadas pela data prevista; o atraso nao e persistido como status.
 - Movimentacoes de estoque sao unicas por filial, produto, data, tipo, origem, documento e CF.
 - Alertas utilizam registro de envio para evitar duplicidade concorrente.
+- Manutencoes concluidas preservam um snapshot documental do ativo e do plano.
+- Evidencias de manutencao ficam fora do `MEDIA_ROOT` publico e possuem hash SHA-256.
+- Eventos de auditoria sao imutaveis e nao utilizam soft delete.
+- Alertas preventivos sao programados para 30, 15, 7 e 1 dia de antecedencia.
 
 As invariantes criticas sao garantidas por constraints PostgreSQL e complementadas por services transacionais.
 
@@ -38,6 +42,15 @@ As invariantes criticas sao garantidas por constraints PostgreSQL e complementad
 - `pcp.enviar_alertas_downtime_aberto`
 
 As tasks utilizam retry com backoff. Como `CELERY_TASK_ACKS_LATE` esta habilitado, toda nova task do PCP deve ser idempotente.
+
+## Configuracao
+
+- `PCP_MAINTENANCE_ALERT_RECIPIENTS`: destinatarios dos alertas preventivos.
+- `PCP_PRIVATE_MEDIA_ROOT`: diretorio privado das evidencias.
+- `PCP_MAX_EVIDENCE_FILES`: limite de anexos por manutencao.
+- `PCP_MAX_EVIDENCE_SIZE`: tamanho maximo de cada anexo em bytes.
+
+O diretorio configurado em `PCP_PRIVATE_MEDIA_ROOT` nao deve ser publicado como Static File no PythonAnywhere.
 
 ## Validacao
 

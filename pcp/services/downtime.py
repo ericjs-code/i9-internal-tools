@@ -34,13 +34,13 @@ class DowntimeService:
         inicio = inicio or timezone.now()
         motivo_normalizado = motivo.strip()
         if not motivo_normalizado:
-            raise PcpValidationError("Motivo do downtime e obrigatorio.")
+            raise PcpValidationError("Motivo do downtime é obrigatório.")
 
         try:
             with transaction.atomic():
                 ativo = PcpAtivo.objects.select_for_update().get(pk=ativo_pcp.pk)
                 if PcpDowntime.objects.filter(ativo_pcp=ativo, fim__isnull=True).exists():
-                    raise PcpConflictError("Ja existe downtime aberto para este ativo.")
+                    raise PcpConflictError("Já existe downtime aberto para este ativo.")
 
                 downtime = PcpDowntime.objects.create(
                     ativo_pcp=ativo,
@@ -55,7 +55,7 @@ class DowntimeService:
                 ativo.save(update_fields=["status", "updated_at"])
                 return downtime
         except IntegrityError as exc:
-            raise PcpConflictError("Ja existe downtime aberto para este ativo.") from exc
+            raise PcpConflictError("Já existe downtime aberto para este ativo.") from exc
 
     @staticmethod
     def fechar_downtime(
@@ -71,7 +71,7 @@ class DowntimeService:
             if downtime.fim:
                 return downtime
             if fim <= downtime.inicio:
-                raise PcpValidationError("fim deve ser posterior ao inicio do downtime.")
+                raise PcpValidationError("O fim deve ser posterior ao início do downtime.")
 
             downtime.fim = fim
             downtime.duracao_minutos = DowntimeService.calcular_duracao_minutos(inicio=downtime.inicio, fim=fim)
@@ -96,7 +96,7 @@ class DowntimeService:
     @staticmethod
     def calcular_duracao_minutos(*, inicio: datetime, fim: datetime) -> int:
         if fim <= inicio:
-            raise PcpValidationError("fim deve ser posterior ao inicio do downtime.")
+            raise PcpValidationError("O fim deve ser posterior ao início do downtime.")
         return max(1, math.ceil((fim - inicio).total_seconds() / 60))
 
     @staticmethod

@@ -199,7 +199,7 @@ class DowntimeCloseAPIView(APIView):
             downtime = PcpDowntime.objects.get(pk=downtime_id)
             downtime = DowntimeService.fechar_downtime(downtime=downtime, **serializer.validated_data)
         except PcpDowntime.DoesNotExist:
-            return Response({"erro": "Downtime nao encontrado."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"erro": "Downtime não encontrado."}, status=status.HTTP_404_NOT_FOUND)
         except (PcpValidationError, PcpConflictError) as exc:
             return _domain_error_response(exc)
         return Response(DowntimeSerializer(downtime).data)
@@ -245,10 +245,11 @@ class ExecucaoManutencaoCloseAPIView(APIView):
             execucao = PcpExecucaoManutencao.objects.get(pk=execucao_id)
             execucao = ProgramacaoManutencaoService.concluir_execucao(
                 execucao=execucao,
+                concluido_por=request.user,
                 **serializer.validated_data,
             )
         except PcpExecucaoManutencao.DoesNotExist:
-            return Response({"erro": "Execucao nao encontrada."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"erro": "Execução não encontrada."}, status=status.HTTP_404_NOT_FOUND)
         except (PcpValidationError, PcpConflictError) as exc:
             return _domain_error_response(exc)
         return Response(ExecucaoManutencaoSerializer(execucao).data)

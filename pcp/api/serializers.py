@@ -162,6 +162,7 @@ class ExecucaoManutencaoSerializer(serializers.ModelSerializer):
         model = PcpExecucaoManutencao
         fields = [
             "id",
+            "protocolo",
             "programacao",
             "plano_nome",
             "ativo_pcp",
@@ -170,6 +171,12 @@ class ExecucaoManutencaoSerializer(serializers.ModelSerializer):
             "data_inicio",
             "data_fim",
             "observacao",
+            "diagnostico",
+            "servicos_executados",
+            "resultado",
+            "recomendacoes",
+            "concluido_em",
+            "concluido_por",
             "responsavel",
             "ativo",
             "created_at",
@@ -192,3 +199,7 @@ class ExecucaoManutencaoStartSerializer(serializers.Serializer):
 
 class ExecucaoManutencaoCloseSerializer(serializers.Serializer):
     data_fim = serializers.DateTimeField(required=False)
+    diagnostico = serializers.CharField(required=False, allow_blank=True)
+    servicos_executados = serializers.CharField(required=False, allow_blank=True)
+    resultado = serializers.CharField(required=False, allow_blank=True)
+    recomendacoes = serializers.CharField(required=False, allow_blank=True)

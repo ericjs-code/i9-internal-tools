@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class PcpModulePermission(BasePermission):
-    message = "Usuario sem permissao para acessar o modulo PCP."
+    message = "Usuário sem permissão para acessar o módulo PCP."
     grupos_autorizados = {"PCP", "TI", "Diretoria"}
 
     def has_permission(self, request: Request, view: Any) -> bool:
@@ -26,26 +26,26 @@ class PcpModulePermission(BasePermission):
 
 
 class PowerBIApiKeyPermission(BasePermission):
-    message = "Acesso nao autorizado. API Key invalida ou ausente."
+    message = "Acesso não autorizado. API Key inválida ou ausente."
 
     def has_permission(self, request: Request, view: Any) -> bool:
         auth_header = request.headers.get("Authorization")
         if not auth_header:
-            logger.warning("Tentativa de acesso a API do Power BI sem Authorization.")
+            logger.warning("Tentativa de acesso à API do Power BI sem Authorization.")
             return False
 
         try:
             auth_type, api_key = auth_header.split()
         except ValueError:
-            logger.warning("Tentativa de acesso a API do Power BI com Authorization mal formatado.")
+            logger.warning("Tentativa de acesso à API do Power BI com Authorization mal formatado.")
             return False
 
         if auth_type.lower() != "api-key":
-            logger.warning("Tentativa de acesso a API do Power BI com tipo de autenticacao incorreto.")
+            logger.warning("Tentativa de acesso à API do Power BI com tipo de autenticação incorreto.")
             return False
 
         expected_key = settings.POWER_BI_API_KEY
         if not expected_key:
-            logger.error("POWER_BI_API_KEY nao esta configurada.")
+            logger.error("POWER_BI_API_KEY não está configurada.")
             return False
         return compare_digest(api_key, expected_key)

@@ -10,10 +10,13 @@ from .models import (
     PcpAreaProducao,
     PcpAtivo,
     PcpDowntime,
+    PcpEvidenciaManutencao,
+    PcpEventoAuditoriaManutencao,
     PcpExecucaoManutencao,
     PcpParametroAlerta,
     PcpPlanoManutencao,
     PcpProgramacaoManutencao,
+    PcpProgramacaoAlertaManutencao,
 )
 
 
@@ -97,6 +100,32 @@ class PcpAlertaEnviadoAdmin(ReadOnlyOperationalAdminMixin, admin.ModelAdmin):
     search_fields = ("chave_idempotencia", "assunto", "destinatarios")
     autocomplete_fields = ("parametro", "programacao", "downtime")
     date_hierarchy = "data_referencia"
+
+
+@admin.register(PcpProgramacaoAlertaManutencao)
+class PcpProgramacaoAlertaManutencaoAdmin(ReadOnlyOperationalAdminMixin, admin.ModelAdmin):
+    list_display = ("programacao", "dias_antecedencia", "data_disparo", "status", "tentativas", "enviado_em")
+    list_filter = ("status", "dias_antecedencia", "data_disparo")
+    search_fields = ("programacao__plano__ativo_pcp__codigo", "destinatarios")
+    autocomplete_fields = ("programacao",)
+    date_hierarchy = "data_disparo"
+
+
+@admin.register(PcpEvidenciaManutencao)
+class PcpEvidenciaManutencaoAdmin(ReadOnlyOperationalAdminMixin, admin.ModelAdmin):
+    list_display = ("nome_original", "execucao", "tipo", "tamanho_bytes", "enviado_por", "created_at", "ativo")
+    list_filter = ("tipo", "ativo", "created_at")
+    search_fields = ("nome_original", "sha256", "execucao__ativo_pcp__codigo")
+    autocomplete_fields = ("execucao", "enviado_por")
+
+
+@admin.register(PcpEventoAuditoriaManutencao)
+class PcpEventoAuditoriaManutencaoAdmin(ReadOnlyOperationalAdminMixin, admin.ModelAdmin):
+    list_display = ("execucao", "tipo_evento", "usuario", "criado_em")
+    list_filter = ("tipo_evento", "criado_em")
+    search_fields = ("execucao__ativo_pcp__codigo", "justificativa")
+    autocomplete_fields = ("execucao", "usuario")
+    date_hierarchy = "criado_em"
 
 
 @admin.register(MovimentacaoEstoquePCP)

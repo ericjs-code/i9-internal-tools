@@ -9,9 +9,9 @@
             <h3 class="fw-bold mb-0" style="color: var(--azul-principal);">
                 <i class="bi bi-clipboard2-pulse text-primary me-2"></i>Dashboard PCP
             </h3>
-            <p class="text-muted mb-0">Gestao de ativos, downtimes e preventivas de producao.</p>
+            <p class="text-muted mb-0">Gestão de ativos, downtimes e preventivas de produção.</p>
         </div>
-        <div class="btn-group" role="group" aria-label="Periodo">
+        <div class="btn-group" role="group" aria-label="Período">
             <a href="?periodo=7" class="btn btn-sm {% if dias == 7 %}btn-primary{% else %}btn-outline-primary{% endif %}">7 dias</a>
             <a href="?periodo=30" class="btn btn-sm {% if dias == 30 %}btn-primary{% else %}btn-outline-primary{% endif %}">30 dias</a>
             <a href="?periodo=90" class="btn btn-sm {% if dias == 90 %}btn-primary{% else %}btn-outline-primary{% endif %}">90 dias</a>
@@ -31,7 +31,7 @@
                             {{ ativos_operando }} operando
                         </span>
                     </div>
-                    <div class="small text-muted mt-3">{{ ativos_manutencao }} em manutencao</div>
+                    <div class="small text-muted mt-3">{{ ativos_manutencao }} em manutenção</div>
                 </div>
             </div>
         </div>
@@ -51,7 +51,7 @@
                 <div class="card-body p-4">
                     <span class="text-warning small fw-bold text-uppercase">Preventivas atrasadas</span>
                     <h2 class="fw-bold mb-0">{{ preventivas_atrasadas_count }}</h2>
-                    <div class="small text-muted mt-3">{{ preventivas_proximas_count }} vencem no periodo</div>
+                    <div class="small text-muted mt-3">{{ preventivas_proximas_count }} vencem no período</div>
                 </div>
             </div>
         </div>
@@ -71,7 +71,7 @@
         <div class="col-xl-8">
             <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-header bg-white border-0 pt-3 pb-0">
-                    <h6 class="fw-bold text-secondary mb-0">Maquinas com maior downtime</h6>
+                    <h6 class="fw-bold text-secondary mb-0">Máquinas com maior downtime</h6>
                 </div>
                 <div class="card-body p-4">
                     {% if top_downtime %}
@@ -79,7 +79,7 @@
                     {% else %}
                         <div class="text-center text-muted py-5">
                             <i class="bi bi-check-circle fs-2 d-block mb-2"></i>
-                            Sem downtime fechado no periodo selecionado.
+                            Sem downtime fechado no período selecionado.
                         </div>
                     {% endif %}
                 </div>
@@ -112,8 +112,8 @@
                         <thead class="bg-light">
                             <tr>
                                 <th class="px-4">Ativo</th>
-                                <th>Area</th>
-                                <th>Inicio</th>
+                                <th>Área</th>
+                                <th>Início</th>
                                 <th>Motivo</th>
                             </tr>
                         </thead>
@@ -177,7 +177,7 @@
             <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center pt-3">
                     <h6 class="fw-bold text-secondary mb-0">
-                        <i class="bi bi-calendar-check me-2"></i>Proximas preventivas
+                        <i class="bi bi-calendar-check me-2"></i>Próximas preventivas
                     </h6>
                     <span class="badge bg-primary">{{ preventivas_proximas_count }}</span>
                 </div>
@@ -186,7 +186,7 @@
                         <thead class="bg-light">
                             <tr>
                                 <th class="px-4">Ativo</th>
-                                <th>Area</th>
+                                <th>Área</th>
                                 <th>Plano</th>
                                 <th>Data</th>
                             </tr>
@@ -201,7 +201,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="4" class="text-center text-muted py-4">Sem preventivas no periodo.</td>
+                                <td colspan="4" class="text-center text-muted py-4">Sem preventivas no período.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -214,7 +214,7 @@
             <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-header bg-white border-0 pt-3">
                     <h6 class="fw-bold text-secondary mb-0">
-                        <i class="bi bi-lightning-charge me-2"></i>Ativos criticos
+                        <i class="bi bi-lightning-charge me-2"></i>Ativos críticos
                     </h6>
                 </div>
                 <div class="list-group list-group-flush">
@@ -227,13 +227,13 @@
                         {% if ativo.status == 'parado' %}
                             <span class="badge bg-danger">Parado</span>
                         {% elif ativo.status == 'manutencao' %}
-                            <span class="badge bg-warning text-dark">Manutencao</span>
+                            <span class="badge bg-warning text-dark">Manutenção</span>
                         {% else %}
                             <span class="badge bg-success">{{ ativo.get_status_display }}</span>
                         {% endif %}
                     </div>
                     {% empty %}
-                    <div class="text-center text-muted py-4">Nenhum ativo critico cadastrado.</div>
+                    <div class="text-center text-muted py-4">Nenhum ativo crítico cadastrado.</div>
                     {% endfor %}
                 </div>
             </div>

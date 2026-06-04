@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.db.models import QuerySet
+from django.db.models import Prefetch
 
 from pcp.models import (
     MovimentacaoEstoquePCP,
@@ -25,6 +26,19 @@ def ativos() -> QuerySet[PcpAtivo]:
     return PcpAtivo.objects.select_related("area").order_by("codigo")
 
 
+def ativo_detalhado(*, ativo_id: int) -> PcpAtivo:
+    execucoes = PcpExecucaoManutencao.objects.select_related("responsavel", "concluido_por").order_by("-data_inicio")
+    planos = PcpPlanoManutencao.objects.prefetch_related("programacoes").order_by("nome")
+    return (
+        PcpAtivo.objects.select_related("area")
+        .prefetch_related(
+            Prefetch("planos_manutencao", queryset=planos),
+            Prefetch("execucoes_manutencao", queryset=execucoes),
+        )
+        .get(pk=ativo_id)
+    )
+
+
 def planos_manutencao() -> QuerySet[PcpPlanoManutencao]:
     return PcpPlanoManutencao.objects.select_related("ativo_pcp").order_by("ativo_pcp__codigo", "nome")
 
@@ -44,3 +58,16 @@ def execucoes_manutencao() -> QuerySet[PcpExecucaoManutencao]:
         "programacao__plano",
         "responsavel",
     ).order_by("-data_inicio")
+
+
+def execucao_detalhada(*, execucao_id: int) -> PcpExecucaoManutencao:
+    return (
+        PcpExecucaoManutencao.objects.select_related(
+            "ativo_pcp__area",
+            "programacao__plano",
+            "responsavel",
+            "concluido_por",
+        )
+        .prefetch_related("evidencias", "eventos_auditoria__usuario")
+        .get(pk=execucao_id)
+    )

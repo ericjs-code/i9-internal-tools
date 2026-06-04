@@ -64,7 +64,7 @@ class PcpDashboardSelector:
             "top_downtime": top_downtime,
             "top_downtime_labels": [item["ativo_pcp__codigo"] or "N/A" for item in top_downtime],
             "top_downtime_data": [int(item["total_minutos"] or 0) for item in top_downtime],
-            "status_labels": ["Operando", "Parado", "Manutencao"],
+            "status_labels": ["Operando", "Parado", "Manutenção"],
             "status_data": [
                 contagens_ativos["operando"],
                 contagens_ativos["parados"],
