@@ -34,6 +34,11 @@
             flex-direction: column;
             transition: all 0.3s;
             min-height: 100vh;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         /* Regras OBRIGATÓRIAS de Responsividade (Mobile e Tablets) */
@@ -45,6 +50,9 @@
                 width: 100%;
                 min-width: 100%;
                 min-height: auto;
+                height: auto;
+                position: static;
+                overflow: visible;
                 padding-bottom: 1rem;
             }
             .main-content {
@@ -195,6 +203,12 @@
                             <li class="nav-item">
                                 <a href="{% url 'candidate_screening' %}" class="nav-link submenu-link {% if 'painel' in request.path %}active-sub{% endif %}">
                                     <i class="bi bi-funnel me-2"></i> Triagem (CVs)
+                                </a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a href="{% url 'listar_formularios_admissionais' %}" class="nav-link submenu-link {% if 'formulario-admissional' in request.path %}active-sub{% endif %}">
+                                    <i class="bi bi-person-vcard me-2"></i> Formulário Admissional
                                 </a>
                             </li>
 

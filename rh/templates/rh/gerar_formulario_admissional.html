@@ -1,0 +1,40 @@
+﻿{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}Novo Formulario Admissional - I9TMG{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-link-45deg me-2" style="color: var(--laranja-principal);"></i>Gerar Link Admissional</h4>
+                <a href="{% url 'listar_formularios_admissionais' %}" class="btn btn-sm btn-outline-secondary">Voltar</a>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-body p-4">
+                    <p class="text-muted mb-4">Informe apenas o nome completo do futuro colaborador. O sistema gerara um link unico para preenchimento publico.</p>
+
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Nome completo do futuro colaborador</label>
+                            {% render_field form.candidato_nome_interno class="form-control" %}
+                            {% for error in form.candidato_nome_interno.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                        </div>
+
+                        <hr class="my-4 text-muted">
+
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary px-4 py-2 shadow-sm" style="background-color: var(--laranja-principal); border: none;">
+                                <i class="bi bi-magic me-2"></i>Gerar Link de Acesso
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

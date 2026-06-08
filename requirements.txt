@@ -21,6 +21,7 @@ colorama==0.4.6
 cryptography==46.0.5
 Django==4.2.30
 django-filter==24.3
+django-phonenumber-field==8.4.0
 django-stubs==6.0.3
 django-stubs-ext==6.0.3
 django-widget-tweaks==1.5.1
@@ -51,6 +52,7 @@ packaging==26.2
 pandas==3.0.1
 paramiko==4.0.0
 pillow==12.1.1
+phonenumbers==9.0.32
 prompt_toolkit==3.0.52
 protobuf==7.34.1
 psutil==7.2.2

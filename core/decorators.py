@@ -37,3 +37,17 @@ def group_required(group_names):
             return redirect('home')
         return _wrapped_view
     return decorator
+
+
+def exige_permissao(modulos_aceitos):
+    mapa_grupos = {
+        'rh': 'RH',
+        'ti': 'TI',
+        'comercial': 'Comercial',
+        'compras': 'Compras',
+        'engenharia': 'Engenharia',
+        'qualidade': 'Qualidade',
+        'rdo': 'RDO',
+    }
+    grupos = [mapa_grupos.get(modulo, modulo) for modulo in modulos_aceitos]
+    return group_required(grupos)

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'widget_tweaks',
+    'phonenumber_field',
     'core',
     'usuarios',
     'ti',
@@ -182,6 +183,9 @@ WIDGET_ERROR_CLASS = 'is-invalid'
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+PHONENUMBER_DEFAULT_REGION = 'BR'
+PHONENUMBER_DB_FORMAT = 'E164'
 
 
 # --- CONFIGURAÇÕES DO CELERY E REDIS ---

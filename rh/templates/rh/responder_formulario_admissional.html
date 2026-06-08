@@ -1,0 +1,215 @@
+﻿<!DOCTYPE html>
+{% load widget_tweaks %}
+{% load static %}
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulário Admissional - I9TMG</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #F2F3F5; font-family: 'Segoe UI', Roboto, sans-serif; }
+        .header-bg { background-color: #141C3C; height: 120px; width: 100%; position: absolute; top: 0; z-index: -1; }
+        .card-formulario { margin-top: 60px; border-radius: 12px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .btn-custom { background-color: #FF742E; border: none; color: white; transition: 0.3s; }
+        .btn-custom:hover { background-color: #e66220; color: white; }
+        .section-title { color: #141C3C; border-bottom: 2px solid #FF742E; padding-bottom: .5rem; margin-top: 2rem; margin-bottom: 1.5rem; }
+        .required::after { content: ' *'; color: #dc3545; }
+        .help-text { font-size: .8rem; color: #6c757d; }
+        .tooltip-help { color: #0d6efd; cursor: help; margin-left: .25rem; }
+    </style>
+</head>
+<body>
+    <div class="header-bg"></div>
+    <div class="container pb-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="text-center mb-4 mt-3">
+                    <img src="{% static 'img/logo.jpg' %}" alt="Logo I9TMG" class="img-fluid rounded-3 shadow-sm" style="max-height: 80px;">
+                </div>
+
+                <div class="card card-formulario">
+                    <div class="card-body p-4 p-md-5">
+                        <h3 class="fw-bold mb-3 text-center" style="color: #141C3C;">Formulário Admissional</h3>
+                        <p class="text-muted text-center mb-4">
+                            Olá, <strong>{{ formulario.candidato_nome_interno }}</strong>. Preencha seus dados com atenção. As informações serão utilizadas pelo RH para fins admissionais.
+                        </p>
+
+                        <div class="alert alert-info border-0 mb-4">
+                            Os dados informados neste formulário serão utilizados exclusivamente para fins admissionais, cadastro interno, obrigações trabalhistas, fiscais e legais da I9TMG. Ao enviar este formulário, você confirma que as informações fornecidas são verdadeiras.
+                            <div class="small mt-2 mb-0">
+                                <i class="bi bi-info-circle me-1"></i>Use os ícones de ajuda ao lado dos campos para localizar informações em documentos como CPF, RG, Carteira de Trabalho Digital, e-Título, certificado de reservista e CNH.
+                            </div>
+                        </div>
+
+                        {% if form.errors or formset.errors or formset.non_form_errors %}
+                            <div class="alert alert-danger">
+                                Revise os campos destacados antes de enviar o formulário.
+                                {{ form.non_field_errors }}
+                                {{ formset.non_form_errors }}
+                            </div>
+                        {% endif %}
+
+                        <form method="POST" novalidate>
+                            {% csrf_token %}
+
+                            <h5 class="fw-bold section-title">Dados Básicos</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6"><label class="form-label fw-semibold required">Nome completo</label>{% render_field form.nome_completo %}{{ form.nome_completo.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold required">CPF <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe os 11 números do CPF. Você encontra essa informação no documento CPF, RG/CIN ou no app Gov.br."></i></label>{% render_field form.cpf %}{{ form.cpf.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold required">Função pretendida <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe a função ou cargo combinado no processo admissional."></i></label>{% render_field form.funcao_pretendida %}<div class="help-text">{{ form.funcao_pretendida.help_text }}</div>{{ form.funcao_pretendida.errors }}</div>
+                            </div>
+
+                            <h5 class="fw-bold section-title">CTPS</h5>
+                            <div class="row g-3">
+                                <div class="col-md-3"><label class="form-label fw-semibold required">PIS <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Pode ser consultado na Carteira de Trabalho Digital, no app FGTS, no Cartão Cidadão ou em documentos antigos de registro."></i></label>{% render_field form.pis %}{{ form.pis.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold required">Número da CTPS <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Na Carteira de Trabalho Digital, consulte seus dados pessoais ou contratos. Se não localizar, informe o número apresentado no aplicativo."></i></label>{% render_field form.numero_ctps %}{{ form.numero_ctps.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold">Série da CTPS <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Na CTPS física fica ao lado do número. Na CTPS Digital, deixe em branco se não houver série separada."></i></label>{% render_field form.serie_ctps %}{{ form.serie_ctps.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold required">UF <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe o estado de emissão da CTPS. Na CTPS Digital, use a UF exibida nos dados do documento."></i></label>{% render_field form.uf_ctps %}{{ form.uf_ctps.errors }}</div>
+                            </div>
+
+                            <h5 class="fw-bold section-title">Endereço</h5>
+                            <div class="row g-3">
+                                <div class="col-md-3"><label class="form-label fw-semibold required">CEP <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe somente números. Você pode confirmar o CEP em uma conta de água/luz, correspondência ou consulta de CEP dos Correios."></i></label>{% render_field form.cep %}<div class="help-text">{{ form.cep.help_text }}</div>{{ form.cep.errors }}</div>
+                                <div class="col-md-9"><label class="form-label fw-semibold required">Endereço <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe somente rua e número."></i></label>{% render_field form.endereco %}<div class="help-text">{{ form.endereco.help_text }}</div>{{ form.endereco.errors }}</div>
+                                <div class="col-md-6"><label class="form-label fw-semibold required">Bairro</label>{% render_field form.bairro %}{{ form.bairro.errors }}</div>
+                                <div class="col-md-6"><label class="form-label fw-semibold required">Cidade/Estado <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe a cidade e a UF onde você mora atualmente. Exemplo: Araucária-PR."></i></label>{% render_field form.cidade_estado %}<div class="help-text">{{ form.cidade_estado.help_text }}</div>{{ form.cidade_estado.errors }}</div>
+                            </div>
+
+                            <h5 class="fw-bold section-title">Contatos</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Telefone principal</label>{% render_field form.telefone_principal %}<div class="help-text">{{ form.telefone_principal.help_text }}</div>{{ form.telefone_principal.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Contato para recado</label>{% render_field form.contato_recado %}<div class="help-text">{{ form.contato_recado.help_text }}</div>{{ form.contato_recado.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Endereço de e-mail</label>{% render_field form.email %}{{ form.email.errors }}</div>
+                            </div>
+
+                            <h5 class="fw-bold section-title">Dados Pessoais</h5>
+                            <div class="row g-3">
+                                <div class="col-md-3"><label class="form-label fw-semibold required">Data de nascimento</label>{% render_field form.data_nascimento %}{{ form.data_nascimento.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold required">Estado</label>{% render_field form.estado_nascimento %}{{ form.estado_nascimento.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold required">Naturalidade <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe a cidade onde você nasceu, conforme consta em seus documentos pessoais."></i></label>{% render_field form.naturalidade %}<div class="help-text">{{ form.naturalidade.help_text }}</div>{{ form.naturalidade.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold required">Cor/Raça</label>{% render_field form.cor_raca %}{{ form.cor_raca.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Grau de instrução</label>{% render_field form.grau_instrucao %}{{ form.grau_instrucao.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Nome da mãe</label>{% render_field form.nome_mae %}{{ form.nome_mae.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Nome do pai</label>{% render_field form.nome_pai %}{{ form.nome_pai.errors }}</div>
+                            </div>
+
+                            <h5 class="fw-bold section-title">Documentos</h5>
+                            <div class="row g-3">
+                                <div class="col-md-3"><label class="form-label fw-semibold required">Número RG <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe o número que aparece no RG/CIN. Se sua identidade nova não tiver RG separado, use o número disponível no documento."></i></label>{% render_field form.numero_rg %}{{ form.numero_rg.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold required">Órgão Expedidor <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Fica no RG/CIN, geralmente como SSP, SESP, IFP ou órgão equivalente."></i></label>{% render_field form.orgao_expedidor %}{{ form.orgao_expedidor.errors }}</div>
+                                <div class="col-md-2"><label class="form-label fw-semibold required">UF</label>{% render_field form.uf_rg %}{{ form.uf_rg.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Data de Emissão <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Fica impressa no RG/CIN como data de emissão ou expedição."></i></label>{% render_field form.data_emissao_rg %}{{ form.data_emissao_rg.errors }}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold">Número título de eleitor <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Pode ser consultado no título físico ou no aplicativo e-Título."></i></label>{% render_field form.titulo_eleitor %}{{ form.titulo_eleitor.errors }}</div>
+                                <div class="col-md-2"><label class="form-label fw-semibold">Zona <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Está no título de eleitor físico ou no aplicativo e-Título."></i></label>{% render_field form.zona_eleitoral %}</div>
+                                <div class="col-md-2"><label class="form-label fw-semibold">Seção <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Está no título de eleitor físico ou no aplicativo e-Título."></i></label>{% render_field form.secao_eleitoral %}</div>
+                                <div class="col-md-2"><label class="form-label fw-semibold">UF</label>{% render_field form.uf_titulo_eleitor %}</div>
+                                <div class="col-md-3"><label class="form-label fw-semibold">Reservista <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe os dados do Certificado de Reservista, se possuir. Geralmente é exigido para candidatos do sexo masculino."></i></label>{% render_field form.reservista %}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold">Nº CNH <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Se possuir CNH, informe os 9 dígitos do número."></i></label>{% render_field form.numero_cnh %}{{ form.numero_cnh.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold">Validade CNH</label>{% render_field form.validade_cnh %}{{ form.validade_cnh.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold">Estado CNH</label>{% render_field form.estado_cnh %}{{ form.estado_cnh.errors }}</div>
+                            </div>
+
+                            <h5 class="fw-bold section-title">Dados Cônjuge</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Estado civil</label>{% render_field form.estado_civil %}{{ form.estado_civil.errors }}</div>
+                            </div>
+
+                            <h5 class="fw-bold section-title">Dependentes Legais - Imposto de Renda</h5>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Possui dependentes?</label>{% render_field form.possui_dependentes_ir %}{{ form.possui_dependentes_ir.errors }}</div>
+                            </div>
+
+                            {{ formset.management_form }}
+                            <div id="dependentes-container" class="vstack gap-3">
+                                {% for dependente_form in formset %}
+                                    <div class="dependente-form border rounded-3 p-3 bg-light">
+                                        {{ dependente_form.id }}
+                                        <div class="row g-3">
+                                            <div class="col-md-4"><label class="form-label fw-semibold">Nome completo</label>{{ dependente_form.nome_completo }}{{ dependente_form.nome_completo.errors }}</div>
+                                            <div class="col-md-2"><label class="form-label fw-semibold">Nascimento</label>{{ dependente_form.data_nascimento }}{{ dependente_form.data_nascimento.errors }}</div>
+                                            <div class="col-md-2"><label class="form-label fw-semibold">RG <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe o RG/CIN do dependente, se ele possuir."></i></label>{{ dependente_form.rg }}{{ dependente_form.rg.errors }}</div>
+                                            <div class="col-md-2"><label class="form-label fw-semibold">CPF <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe os 11 números do CPF do dependente."></i></label>{{ dependente_form.cpf }}{{ dependente_form.cpf.errors }}</div>
+                                            <div class="col-md-2"><label class="form-label fw-semibold">Cidade/Estado</label>{{ dependente_form.cidade_estado_nascimento }}{{ dependente_form.cidade_estado_nascimento.errors }}</div>
+                                        </div>
+                                        {{ dependente_form.non_field_errors }}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" id="adicionar-dependente" class="btn btn-sm btn-outline-secondary mt-3">
+                                <i class="bi bi-plus-circle me-1"></i>Adicionar dependente
+                            </button>
+
+                            <h5 class="fw-bold section-title">Uniforme</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Botina <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe a numeração que você usa normalmente em calçado de segurança ou sapato fechado."></i></label>{% render_field form.botina %}{{ form.botina.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Camisa <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe o tamanho de camiseta/uniforme que você usa habitualmente."></i></label>{% render_field form.camisa %}{{ form.camisa.errors }}</div>
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Calça <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe o tamanho de calça que você usa habitualmente."></i></label>{% render_field form.calca %}{{ form.calca.errors }}</div>
+                            </div>
+
+                            <h5 class="fw-bold section-title">Vale Transporte</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4"><label class="form-label fw-semibold required">Utiliza vale transporte? <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Marque Sim se você pretende utilizar transporte público para deslocamento entre residência e trabalho."></i></label>{% render_field form.utiliza_vale_transporte %}{{ form.utiliza_vale_transporte.errors }}</div>
+                                <div class="col-md-8"><label class="form-label fw-semibold">Trajeto <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Se utilizar vale transporte, informe o trajeto entre sua residência e o trabalho. Exemplo: linha de ônibus, terminal, integração ou percurso."></i></label>{% render_field form.trajeto_vale_transporte %}<div class="help-text">{{ form.trajeto_vale_transporte.help_text }}</div>{{ form.trajeto_vale_transporte.errors }}</div>
+                            </div>
+
+                            <div class="form-check bg-light border rounded-3 p-4 mt-5">
+                                {% render_field form.lgpd_consentimento %}
+                                <label class="form-check-label fw-semibold ms-2 required" for="{{ form.lgpd_consentimento.id_for_label }}">
+                                    Declaro que li e concordo com o uso dos meus dados para fins admissionais e obrigações legais.
+                                </label>
+                                {{ form.lgpd_consentimento.errors }}
+                            </div>
+
+                            <div class="d-grid gap-2 mt-4">
+                                <button type="submit" class="btn btn-custom btn-lg py-3 fw-bold">
+                                    Enviar Formulário <i class="bi bi-send ms-2"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="text-center mt-4 text-muted small">
+                    &copy; 2026 I9TMG - Portal de Recursos Humanos
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <template id="dependente-empty-form">
+        <div class="dependente-form border rounded-3 p-3 bg-light">
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label fw-semibold">Nome completo</label>{{ formset.empty_form.nome_completo }}</div>
+                <div class="col-md-2"><label class="form-label fw-semibold">Nascimento</label>{{ formset.empty_form.data_nascimento }}</div>
+                <div class="col-md-2"><label class="form-label fw-semibold">RG <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe o RG/CIN do dependente, se ele possuir."></i></label>{{ formset.empty_form.rg }}</div>
+                <div class="col-md-2"><label class="form-label fw-semibold">CPF <i class="bi bi-question-circle tooltip-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Informe os 11 números do CPF do dependente."></i></label>{{ formset.empty_form.cpf }}</div>
+                <div class="col-md-2"><label class="form-label fw-semibold">Cidade/Estado</label>{{ formset.empty_form.cidade_estado_nascimento }}</div>
+            </div>
+        </div>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function inicializarTooltips() {
+            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+                if (!bootstrap.Tooltip.getInstance(el)) {
+                    new bootstrap.Tooltip(el);
+                }
+            });
+        }
+
+        inicializarTooltips();
+
+        document.getElementById('adicionar-dependente').addEventListener('click', function () {
+            const totalForms = document.getElementById('id_dependentes-TOTAL_FORMS');
+            const container = document.getElementById('dependentes-container');
+            const template = document.getElementById('dependente-empty-form').innerHTML;
+            const index = parseInt(totalForms.value, 10);
+            container.insertAdjacentHTML('beforeend', template.replace(/__prefix__/g, index));
+            totalForms.value = index + 1;
+            inicializarTooltips();
+        });
+    </script>
+</body>
+</html>

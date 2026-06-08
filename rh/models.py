@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from phonenumber_field.modelfields import PhoneNumberField
+from .constants import ORGAOS_EXPEDIDORES_RG, UF_CHOICES
 import uuid
 import os
 
@@ -172,6 +174,145 @@ class PesquisaDemissional(models.Model):
     def get_link_externo(self):
         from django.urls import reverse
         return reverse('responder_pesquisa', kwargs={'uuid_pesquisa': self.id_pesquisa})
+
+
+SIM_NAO_CHOICES = [
+    ('SIM', 'Sim'),
+    ('NAO', 'Nao'),
+]
+
+
+class FormularioAdmissional(models.Model):
+    COR_RACA_CHOICES = [
+        ('BRANCA', 'Branca'),
+        ('PRETA', 'Preta'),
+        ('PARDA', 'Parda'),
+        ('AMARELA', 'Amarela'),
+        ('INDIGENA', 'Indigena'),
+        ('NAO_INFORMAR', 'Prefiro nao informar'),
+    ]
+
+    GRAU_INSTRUCAO_CHOICES = [
+        ('FUND_INCOMPLETO', 'Ensino Fundamental Incompleto'),
+        ('FUND_COMPLETO', 'Ensino Fundamental Completo'),
+        ('MEDIO_INCOMPLETO', 'Ensino Medio Incompleto'),
+        ('MEDIO_COMPLETO', 'Ensino Medio Completo'),
+        ('SUPERIOR_INCOMPLETO', 'Ensino Superior Incompleto'),
+        ('SUPERIOR_COMPLETO', 'Ensino Superior Completo'),
+        ('POS_GRADUACAO', 'Pos-graduacao'),
+        ('MESTRADO', 'Mestrado'),
+        ('DOUTORADO', 'Doutorado'),
+    ]
+
+    ESTADO_CIVIL_CHOICES = [
+        ('SOLTEIRO', 'Solteiro(a)'),
+        ('CASADO', 'Casado(a)'),
+        ('UNIAO_ESTAVEL', 'Uniao Estavel'),
+        ('DIVORCIADO', 'Divorciado(a)'),
+        ('SEPARADO', 'Separado(a)'),
+        ('VIUVO', 'Viuvo(a)'),
+    ]
+
+    BOTINA_CHOICES = [(str(tamanho), str(tamanho)) for tamanho in range(34, 47)]
+    CAMISA_CHOICES = [('PP', 'PP'), ('P', 'P'), ('M', 'M'), ('G', 'G'), ('GG', 'GG'), ('XG', 'XG'), ('XXG', 'XXG')]
+    CALCA_CHOICES = CAMISA_CHOICES + [(str(tamanho), str(tamanho)) for tamanho in range(36, 55, 2)]
+
+    id_formulario = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    gerado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='formularios_admissionais_gerados')
+    data_geracao = models.DateTimeField(auto_now_add=True)
+    respondido = models.BooleanField(default=False, verbose_name="Formulario ja foi respondido?")
+    data_resposta = models.DateTimeField(null=True, blank=True)
+    candidato_nome_interno = models.CharField(max_length=150, verbose_name="Nome completo do futuro colaborador")
+    observacoes_rh = models.TextField(blank=True, null=True)
+
+    nome_completo = models.CharField(max_length=150, blank=True, null=True)
+    cpf = models.CharField(max_length=14, blank=True, null=True)
+    cidade_estado = models.CharField(max_length=120, blank=True, null=True, help_text="Ex.: Araucaria-PR")
+    funcao_pretendida = models.CharField(max_length=120, blank=True, null=True)
+
+    pis = models.CharField(max_length=30, blank=True, null=True)
+    numero_ctps = models.CharField(max_length=30, blank=True, null=True)
+    serie_ctps = models.CharField(max_length=4, blank=True, null=True)
+    uf_ctps = models.CharField(max_length=2, choices=UF_CHOICES, blank=True, null=True)
+
+    cep = models.CharField(max_length=10, blank=True, null=True, help_text="Ex.: 00000000")
+    endereco = models.CharField(max_length=255, blank=True, null=True, help_text="Rua e numero")
+    bairro = models.CharField(max_length=120, blank=True, null=True)
+
+    telefone_principal = PhoneNumberField(region='BR', blank=True, null=True, help_text="Ex.: DD 99999-9999")
+    contato_recado = PhoneNumberField(region='BR', blank=True, null=True, help_text="Ex.: DD 99999-9999")
+    email = models.EmailField(blank=True, null=True)
+
+    data_nascimento = models.DateField(blank=True, null=True)
+    estado_nascimento = models.CharField(max_length=2, choices=UF_CHOICES, blank=True, null=True)
+    naturalidade = models.CharField(max_length=120, blank=True, null=True, help_text="Cidade onde nasceu")
+    cor_raca = models.CharField(max_length=20, choices=COR_RACA_CHOICES, blank=True, null=True)
+    grau_instrucao = models.CharField(max_length=30, choices=GRAU_INSTRUCAO_CHOICES, blank=True, null=True)
+    nome_mae = models.CharField(max_length=150, blank=True, null=True)
+    nome_pai = models.CharField(max_length=150, blank=True, null=True)
+
+    numero_rg = models.CharField(max_length=30, blank=True, null=True)
+    orgao_expedidor = models.CharField(max_length=30, choices=ORGAOS_EXPEDIDORES_RG, blank=True, null=True)
+    uf_rg = models.CharField(max_length=2, choices=UF_CHOICES, blank=True, null=True)
+    data_emissao_rg = models.DateField(blank=True, null=True)
+    titulo_eleitor = models.CharField(max_length=30, blank=True, null=True)
+    zona_eleitoral = models.CharField(max_length=20, blank=True, null=True)
+    secao_eleitoral = models.CharField(max_length=20, blank=True, null=True)
+    uf_titulo_eleitor = models.CharField(max_length=2, choices=UF_CHOICES, blank=True, null=True)
+    reservista = models.CharField(max_length=50, blank=True, null=True)
+    cnh = models.CharField(max_length=100, blank=True, null=True, help_text="Informar numero, validade e estado")
+    numero_cnh = models.CharField(max_length=9, blank=True, null=True)
+    validade_cnh = models.DateField(blank=True, null=True)
+    estado_cnh = models.CharField(max_length=2, choices=UF_CHOICES, blank=True, null=True)
+
+    estado_civil = models.CharField(max_length=20, choices=ESTADO_CIVIL_CHOICES, blank=True, null=True)
+    possui_dependentes_ir = models.CharField(max_length=3, choices=SIM_NAO_CHOICES, blank=True, null=True)
+
+    botina = models.CharField(max_length=2, choices=BOTINA_CHOICES, blank=True, null=True)
+    camisa = models.CharField(max_length=3, choices=CAMISA_CHOICES, blank=True, null=True)
+    calca = models.CharField(max_length=3, choices=CALCA_CHOICES, blank=True, null=True)
+
+    utiliza_vale_transporte = models.CharField(max_length=3, choices=SIM_NAO_CHOICES, blank=True, null=True)
+    trajeto_vale_transporte = models.TextField(blank=True, null=True)
+    lgpd_consentimento = models.BooleanField(default=False)
+
+    def __str__(self):
+        status = 'Respondido' if self.respondido else 'Pendente'
+        return f'{self.candidato_nome_interno} ({status})'
+
+    def get_link_externo(self):
+        from django.urls import reverse
+        return reverse('responder_formulario_admissional', kwargs={'uuid_formulario': self.id_formulario})
+
+    def save(self, *args, **kwargs):
+        import re
+        if self.cpf:
+            self.cpf = re.sub(r'\D', '', self.cpf)
+        if self.cep:
+            self.cep = re.sub(r'\D', '', self.cep)
+        for campo in ['pis', 'numero_ctps', 'serie_ctps', 'numero_rg', 'titulo_eleitor', 'numero_cnh']:
+            valor = getattr(self, campo, None)
+            if valor:
+                setattr(self, campo, re.sub(r'\D', '', valor))
+        super().save(*args, **kwargs)
+
+
+class DependenteAdmissional(models.Model):
+    formulario = models.ForeignKey(FormularioAdmissional, related_name='dependentes', on_delete=models.CASCADE)
+    nome_completo = models.CharField(max_length=150)
+    data_nascimento = models.DateField()
+    rg = models.CharField(max_length=30)
+    cpf = models.CharField(max_length=14)
+    cidade_estado_nascimento = models.CharField(max_length=120)
+
+    def __str__(self):
+        return f'{self.nome_completo} - {self.formulario.candidato_nome_interno}'
+
+    def save(self, *args, **kwargs):
+        import re
+        if self.cpf:
+            self.cpf = re.sub(r'\D', '', self.cpf)
+        super().save(*args, **kwargs)
 
 
 class Funcionario(models.Model):

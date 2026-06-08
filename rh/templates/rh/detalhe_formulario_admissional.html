@@ -1,0 +1,135 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Detalhe Formulario Admissional - I9TMG{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-0 text-dark fw-bold"><i class="bi bi-person-vcard me-2" style="color: var(--laranja-principal);"></i>{{ formulario.candidato_nome_interno }}</h3>
+            <p class="text-muted small mb-0">Consulta completa do formulario admissional</p>
+        </div>
+        <a href="{% url 'listar_formularios_admissionais' %}" class="btn btn-sm btn-outline-secondary">Voltar</a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">Dados Basicos</h5>
+                <p><strong>Nome completo:</strong> {{ formulario.nome_completo|default:"-" }}</p>
+                <p><strong>CPF:</strong> {{ formulario.cpf|default:"-" }}</p>
+                <p><strong>Função pretendida:</strong> {{ formulario.funcao_pretendida|default:"-" }}</p>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">CTPS</h5>
+                <p><strong>PIS:</strong> {{ formulario.pis|default:"-" }}</p>
+                <p><strong>Numero CTPS:</strong> {{ formulario.numero_ctps|default:"-" }}</p>
+                <p><strong>Serie CTPS:</strong> {{ formulario.serie_ctps|default:"-" }}</p>
+                <p><strong>UF CTPS:</strong> {{ formulario.uf_ctps|default:"-" }}</p>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">Endereco</h5>
+                <p><strong>CEP:</strong> {{ formulario.cep|default:"-" }}</p>
+                <p><strong>Endereco:</strong> {{ formulario.endereco|default:"-" }}</p>
+                <p><strong>Bairro:</strong> {{ formulario.bairro|default:"-" }}</p>
+                <p><strong>Cidade/Estado:</strong> {{ formulario.cidade_estado|default:"-" }}</p>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">Contatos</h5>
+                <p><strong>Telefone principal:</strong> {{ formulario.telefone_principal|default:"-" }}</p>
+                <p><strong>Contato recado:</strong> {{ formulario.contato_recado|default:"-" }}</p>
+                <p><strong>E-mail:</strong> {{ formulario.email|default:"-" }}</p>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">Dados Pessoais</h5>
+                <p><strong>Data nascimento:</strong> {{ formulario.data_nascimento|date:"d/m/Y"|default:"-" }}</p>
+                <p><strong>Estado nascimento:</strong> {{ formulario.estado_nascimento|default:"-" }}</p>
+                <p><strong>Naturalidade:</strong> {{ formulario.naturalidade|default:"-" }}</p>
+                <p><strong>Cor/Raca:</strong> {{ formulario.get_cor_raca_display|default:"-" }}</p>
+                <p><strong>Grau instrucao:</strong> {{ formulario.get_grau_instrucao_display|default:"-" }}</p>
+                <p><strong>Nome mae:</strong> {{ formulario.nome_mae|default:"-" }}</p>
+                <p><strong>Nome pai:</strong> {{ formulario.nome_pai|default:"-" }}</p>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">Documentos</h5>
+                <p><strong>RG:</strong> {{ formulario.numero_rg|default:"-" }}</p>
+                <p><strong>Orgao expedidor:</strong> {{ formulario.orgao_expedidor|default:"-" }}</p>
+                <p><strong>UF RG:</strong> {{ formulario.uf_rg|default:"-" }}</p>
+                <p><strong>Data emissao RG:</strong> {{ formulario.data_emissao_rg|date:"d/m/Y"|default:"-" }}</p>
+                <p><strong>Titulo eleitor:</strong> {{ formulario.titulo_eleitor|default:"-" }}</p>
+                <p><strong>Zona:</strong> {{ formulario.zona_eleitoral|default:"-" }}</p>
+                <p><strong>Secao:</strong> {{ formulario.secao_eleitoral|default:"-" }}</p>
+                <p><strong>UF titulo:</strong> {{ formulario.uf_titulo_eleitor|default:"-" }}</p>
+                <p><strong>Reservista:</strong> {{ formulario.reservista|default:"-" }}</p>
+                <p><strong>Nº CNH:</strong> {{ formulario.numero_cnh|default:"-" }}</p>
+                <p><strong>Validade CNH:</strong> {{ formulario.validade_cnh|date:"d/m/Y"|default:"-" }}</p>
+                <p><strong>Estado CNH:</strong> {{ formulario.estado_cnh|default:"-" }}</p>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">Dados Conjuge</h5>
+                <p><strong>Estado civil:</strong> {{ formulario.get_estado_civil_display|default:"-" }}</p>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">Uniforme e Vale Transporte</h5>
+                <p><strong>Botina:</strong> {{ formulario.botina|default:"-" }}</p>
+                <p><strong>Camisa:</strong> {{ formulario.camisa|default:"-" }}</p>
+                <p><strong>Calca:</strong> {{ formulario.calca|default:"-" }}</p>
+                <p><strong>Vale transporte:</strong> {{ formulario.get_utiliza_vale_transporte_display|default:"-" }}</p>
+                <p><strong>Trajeto:</strong> {{ formulario.trajeto_vale_transporte|default:"-" }}</p>
+            </div></div>
+        </div>
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm rounded-3"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">Dependentes</h5>
+                <p><strong>Possui dependentes IR:</strong> {{ formulario.get_possui_dependentes_ir_display|default:"-" }}</p>
+                {% if formulario.dependentes.all %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead><tr><th>Nome</th><th>Nascimento</th><th>RG</th><th>CPF</th><th>Cidade/Estado</th></tr></thead>
+                            <tbody>
+                                {% for dependente in formulario.dependentes.all %}
+                                <tr>
+                                    <td>{{ dependente.nome_completo }}</td>
+                                    <td>{{ dependente.data_nascimento|date:"d/m/Y" }}</td>
+                                    <td>{{ dependente.rg }}</td>
+                                    <td>{{ dependente.cpf }}</td>
+                                    <td>{{ dependente.cidade_estado_nascimento }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">Nenhum dependente informado.</p>
+                {% endif %}
+            </div></div>
+        </div>
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm rounded-3"><div class="card-body">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">LGPD e Controle Interno</h5>
+                <p><strong>LGPD:</strong> {% if formulario.lgpd_consentimento %}Consentimento registrado{% else %}Nao registrado{% endif %}</p>
+                <p><strong>ID formulario:</strong> {{ formulario.id_formulario }}</p>
+                <p><strong>Gerado por:</strong> {{ formulario.gerado_por.get_username }}</p>
+                <p><strong>Data geracao:</strong> {{ formulario.data_geracao|date:"d/m/Y H:i" }}</p>
+                <p><strong>Respondido:</strong> {% if formulario.respondido %}Sim{% else %}Nao{% endif %}</p>
+                <p><strong>Data resposta:</strong> {{ formulario.data_resposta|date:"d/m/Y H:i"|default:"-" }}</p>
+                <p><strong>Observacoes RH:</strong> {{ formulario.observacoes_rh|default:"-" }}</p>
+            </div></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
