@@ -185,6 +185,32 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- CONFIGURAÇÕES DO CELERY E REDIS ---
 
+CELERY_REDIS_VISIBILITY_TIMEOUT = int(os.getenv('CELERY_REDIS_VISIBILITY_TIMEOUT', str(60 * 60)))
+CELERY_REDIS_MAX_CONNECTIONS = int(os.getenv('CELERY_REDIS_MAX_CONNECTIONS', '10'))
+CELERY_REDIS_SOCKET_TIMEOUT = int(os.getenv('CELERY_REDIS_SOCKET_TIMEOUT', '60'))
+CELERY_REDIS_SOCKET_CONNECT_TIMEOUT = int(os.getenv('CELERY_REDIS_SOCKET_CONNECT_TIMEOUT', '60'))
+CELERY_REDIS_HEALTH_CHECK_INTERVAL = int(os.getenv('CELERY_REDIS_HEALTH_CHECK_INTERVAL', '30'))
+
+
+def _normalize_celery_redis_url(url):
+    if url and url.startswith('redis://'):
+        return 'rediss://' + url[len('redis://'):]
+    return url
+
+
+def _celery_redis_ssl_cert_reqs():
+    cert_reqs = os.getenv('CELERY_REDIS_SSL_CERT_REQS', 'required').strip().lower()
+    options = {
+        'required': ssl.CERT_REQUIRED,
+        'cert_required': ssl.CERT_REQUIRED,
+        'none': ssl.CERT_NONE,
+        'cert_none': ssl.CERT_NONE,
+        'optional': ssl.CERT_OPTIONAL,
+        'cert_optional': ssl.CERT_OPTIONAL,
+    }
+    return options.get(cert_reqs, ssl.CERT_REQUIRED)
+
+
 if DEBUG:
     # AMBIENTE LOCAL (DESENVOLVIMENTO)
     CELERY_TASK_ALWAYS_EAGER = True
@@ -195,22 +221,43 @@ if DEBUG:
 else:
     # AMBIENTE PRODUÇÃO (PYTHONANYWHERE + UPSTASH)
     CELERY_TASK_ALWAYS_EAGER = False
-    CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
+    CELERY_BROKER_URL = _normalize_celery_redis_url(os.getenv('CELERY_BROKER_URL'))
     CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 
     # Configurações de SSL para Upstash (Corrigido)
-    CELERY_BROKER_USE_SSL = {'ssl_cert_reqs': ssl.CERT_REQUIRED}
-    CELERY_REDIS_BACKEND_USE_SSL = {'ssl_cert_reqs': ssl.CERT_REQUIRED}
+    CELERY_REDIS_SSL = {'ssl_cert_reqs': _celery_redis_ssl_cert_reqs()}
+    CELERY_BROKER_USE_SSL = CELERY_REDIS_SSL
+    CELERY_REDIS_BACKEND_USE_SSL = CELERY_REDIS_SSL
 
     # Otimização de Conexão para PythonAnywhere
     CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+    CELERY_TASK_PUBLISH_RETRY = True
+    CELERY_TASK_PUBLISH_RETRY_POLICY = {
+        'max_retries': 5,
+        'interval_start': 0,
+        'interval_step': 0.5,
+        'interval_max': 3,
+    }
 
     # Limite de conexões (Upstash Free suporta poucas conexões simultâneas)
-    CELERY_BROKER_POOL_LIMIT = 1
+    CELERY_BROKER_POOL_LIMIT = CELERY_REDIS_MAX_CONNECTIONS
 
     # Estabilidade da conexão
     CELERY_BROKER_HEARTBEAT = None
-    CELERY_REDIS_SOCKET_TIMEOUT = 30
+    CELERY_BROKER_TRANSPORT_OPTIONS = {
+        'visibility_timeout': CELERY_REDIS_VISIBILITY_TIMEOUT,
+        'max_connections': CELERY_REDIS_MAX_CONNECTIONS,
+        'socket_timeout': CELERY_REDIS_SOCKET_TIMEOUT,
+        'socket_connect_timeout': CELERY_REDIS_SOCKET_CONNECT_TIMEOUT,
+        'socket_keepalive': True,
+        'health_check_interval': CELERY_REDIS_HEALTH_CHECK_INTERVAL,
+        'retry_on_timeout': True,
+    }
+    CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+        'visibility_timeout': CELERY_REDIS_VISIBILITY_TIMEOUT,
+    }
+    CELERY_VISIBILITY_TIMEOUT = CELERY_REDIS_VISIBILITY_TIMEOUT
+    CELERY_REDIS_SOCKET_KEEPALIVE = True
     CELERY_REDIS_RETRY_ON_TIMEOUT = True
 
 # Configurações globais
