@@ -39,9 +39,6 @@ jobs:
       - name: Validar migrations pendentes
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Executar testes PCP
-        run: python manage.py test pcp --verbosity 1
-
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest

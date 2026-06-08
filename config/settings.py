@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 import mimetypes
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from celery.schedules import crontab
 from django.conf.global_settings import USE_THOUSAND_SEPARATOR, EMAIL_HOST_PASSWORD
 from dotenv import load_dotenv
@@ -192,23 +193,42 @@ CELERY_REDIS_SOCKET_CONNECT_TIMEOUT = int(os.getenv('CELERY_REDIS_SOCKET_CONNECT
 CELERY_REDIS_HEALTH_CHECK_INTERVAL = int(os.getenv('CELERY_REDIS_HEALTH_CHECK_INTERVAL', '30'))
 
 
-def _normalize_celery_redis_url(url):
-    if url and url.startswith('redis://'):
-        return 'rediss://' + url[len('redis://'):]
-    return url
+def _celery_redis_ssl_cert_reqs_name():
+    cert_reqs = os.getenv('CELERY_REDIS_SSL_CERT_REQS', 'required').strip().lower()
+    options = {
+        'required': 'required',
+        'cert_required': 'required',
+        'none': 'none',
+        'cert_none': 'none',
+        'optional': 'optional',
+        'cert_optional': 'optional',
+    }
+    return options.get(cert_reqs, 'required')
 
 
 def _celery_redis_ssl_cert_reqs():
-    cert_reqs = os.getenv('CELERY_REDIS_SSL_CERT_REQS', 'required').strip().lower()
     options = {
         'required': ssl.CERT_REQUIRED,
-        'cert_required': ssl.CERT_REQUIRED,
         'none': ssl.CERT_NONE,
-        'cert_none': ssl.CERT_NONE,
         'optional': ssl.CERT_OPTIONAL,
-        'cert_optional': ssl.CERT_OPTIONAL,
     }
-    return options.get(cert_reqs, ssl.CERT_REQUIRED)
+    return options[_celery_redis_ssl_cert_reqs_name()]
+
+
+def _normalize_celery_redis_url(url):
+    if not url:
+        return url
+
+    if url.startswith('redis://'):
+        url = 'rediss://' + url[len('redis://'):]
+
+    if not url.startswith('rediss://'):
+        return url
+
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.setdefault('ssl_cert_reqs', _celery_redis_ssl_cert_reqs_name())
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
 if DEBUG:
