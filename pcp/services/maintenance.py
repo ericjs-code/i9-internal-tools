@@ -42,11 +42,14 @@ class PlanoManutencaoService:
         *,
         ativo_pcp: PcpAtivo,
         nome: str,
+        data_inicio: date,
         tipo: str = TipoManutencao.PREVENTIVA,
         descricao: str = "",
         intervalo_dias: int | None = None,
     ) -> PcpPlanoManutencao:
         PlanoManutencaoService._validar_intervalo(intervalo_dias=intervalo_dias)
+        if not nome.strip():
+            raise PcpValidationError("Nome do plano é obrigatório.")
         if not ativo_pcp.ativo:
             raise PcpValidationError("Não é permitido criar plano para ativo inativo.")
 
@@ -57,7 +60,53 @@ class PlanoManutencaoService:
                 tipo=tipo,
                 descricao=descricao.strip(),
                 intervalo_dias=intervalo_dias,
+                data_inicio=data_inicio,
             )
+
+    @staticmethod
+    def atualizar_plano(
+        *,
+        plano: PcpPlanoManutencao,
+        nome: str,
+        data_inicio: date,
+        tipo: str = TipoManutencao.PREVENTIVA,
+        descricao: str = "",
+        intervalo_dias: int | None = None,
+    ) -> PcpPlanoManutencao:
+        PlanoManutencaoService._validar_intervalo(intervalo_dias=intervalo_dias)
+        if not nome.strip():
+            raise PcpValidationError("Nome do plano é obrigatório.")
+
+        with transaction.atomic():
+            plano = PcpPlanoManutencao.objects.select_for_update().select_related("ativo_pcp").get(pk=plano.pk)
+            if not plano.ativo_pcp.ativo:
+                raise PcpValidationError("Não é permitido alterar plano de ativo inativo.")
+            if PcpProgramacaoManutencao.objects.filter(plano=plano, status=StatusManutencao.EM_EXECUCAO).exists():
+                raise PcpConflictError("Plano possui manutenção em execução e não pode ser alterado.")
+            plano.nome = nome.strip()
+            plano.tipo = tipo
+            plano.descricao = descricao.strip()
+            plano.intervalo_dias = intervalo_dias
+            plano.data_inicio = data_inicio
+            plano.save(
+                update_fields=["nome", "tipo", "descricao", "intervalo_dias", "data_inicio", "updated_at"]
+            )
+            return plano
+
+    @staticmethod
+    def desativar_plano(*, plano: PcpPlanoManutencao) -> PcpPlanoManutencao:
+        with transaction.atomic():
+            plano = PcpPlanoManutencao.objects.select_for_update().get(pk=plano.pk)
+            if PcpProgramacaoManutencao.objects.filter(plano=plano, status=StatusManutencao.EM_EXECUCAO).exists():
+                raise PcpConflictError("Plano possui manutenção em execução e não pode ser desativado.")
+            PcpProgramacaoManutencao.objects.filter(plano=plano, status=StatusManutencao.PLANEJADA).update(
+                ativo=False,
+                status=StatusManutencao.CANCELADA,
+                updated_at=timezone.now(),
+            )
+            plano.ativo = False
+            plano.save(update_fields=["ativo", "updated_at"])
+            return plano
 
     @staticmethod
     def _validar_intervalo(*, intervalo_dias: int | None) -> None:
@@ -77,8 +126,10 @@ class ProgramacaoManutencaoService:
         if plano.intervalo_dias is None or plano.intervalo_dias <= 0:
             raise PcpValidationError("Plano ativo exige intervalo de dias maior que zero.")
 
-        base = ProgramacaoManutencaoService._data_base(plano=plano, referencia=referencia)
-        return base + timedelta(days=plano.intervalo_dias)
+        ultima_execucao = ProgramacaoManutencaoService._ultima_execucao_concluida(plano=plano)
+        if ultima_execucao and ultima_execucao.data_fim:
+            return timezone.localtime(ultima_execucao.data_fim).date() + timedelta(days=plano.intervalo_dias)
+        return plano.data_inicio
 
     @staticmethod
     def gerar_proxima_preventiva(
@@ -134,6 +185,34 @@ class ProgramacaoManutencaoService:
                 existentes += 1
 
         return RecalculoResultado(criadas=criadas, existentes=existentes)
+
+    @staticmethod
+    def sincronizar_preventiva_do_plano(*, plano: PcpPlanoManutencao, referencia: date | None = None) -> PcpProgramacaoManutencao | None:
+        with transaction.atomic():
+            plano = PcpPlanoManutencao.objects.select_for_update().select_related("ativo_pcp").get(pk=plano.pk)
+            if plano.tipo != TipoManutencao.PREVENTIVA or not plano.ativo or not plano.ativo_pcp.ativo:
+                return None
+            programacao = (
+                ProgramacaoManutencaoService._programacoes_pendentes(plano=plano)
+                .select_for_update()
+                .filter(status=StatusManutencao.PLANEJADA)
+                .first()
+            )
+            if not programacao:
+                return ProgramacaoManutencaoService.gerar_proxima_preventiva(plano=plano, referencia=referencia).programacao
+
+            data_prevista = ProgramacaoManutencaoService.calcular_data_proxima_preventiva(
+                plano=plano,
+                referencia=referencia,
+            )
+            programacao.data_prevista = data_prevista
+            programacao.data_limite = data_prevista
+            programacao.save(update_fields=["data_prevista", "data_limite", "updated_at"])
+
+        from pcp.services.alerts import AlertaManutencaoService
+
+        AlertaManutencaoService.sincronizar_programacao(programacao=programacao, referencia=referencia)
+        return programacao
 
     @staticmethod
     def concluir_execucao(
@@ -269,6 +348,54 @@ class ProgramacaoManutencaoService:
             raise PcpConflictError("Já existe uma execução de manutenção aberta para este ativo.") from exc
 
     @staticmethod
+    def corrigir_execucao_concluida(
+        *,
+        execucao: PcpExecucaoManutencao,
+        usuario: AbstractBaseUser | None,
+        justificativa: str,
+        observacao: str = "",
+        diagnostico: str = "",
+        servicos_executados: str = "",
+        resultado: str = "",
+        recomendacoes: str = "",
+    ) -> PcpExecucaoManutencao:
+        justificativa_normalizada = justificativa.strip()
+        if not justificativa_normalizada:
+            raise PcpValidationError("Justificativa obrigatória para corrigir manutenção concluída.")
+
+        with transaction.atomic():
+            execucao = PcpExecucaoManutencao.objects.select_for_update().get(pk=execucao.pk)
+            if not execucao.data_fim:
+                raise PcpConflictError("Somente manutenções concluídas podem ser corrigidas por este fluxo.")
+
+            campos = {
+                "observacao": observacao.strip(),
+                "diagnostico": diagnostico.strip(),
+                "servicos_executados": servicos_executados.strip(),
+                "resultado": resultado.strip(),
+                "recomendacoes": recomendacoes.strip(),
+            }
+            alteracoes = {
+                campo: {"antes": getattr(execucao, campo), "depois": valor}
+                for campo, valor in campos.items()
+                if getattr(execucao, campo) != valor
+            }
+            if not alteracoes:
+                raise PcpValidationError("Nenhuma alteração documental foi informada.")
+
+            for campo, valor in campos.items():
+                setattr(execucao, campo, valor)
+            execucao.save(update_fields=[*campos.keys(), "updated_at"])
+            AuditoriaManutencaoService.registrar(
+                execucao=execucao,
+                tipo_evento=TipoEventoAuditoria.CORRIGIDA,
+                usuario=usuario,
+                justificativa=justificativa_normalizada,
+                dados={"alteracoes": alteracoes},
+            )
+            return execucao
+
+    @staticmethod
     def _programacoes_pendentes(*, plano: PcpPlanoManutencao) -> QuerySet[PcpProgramacaoManutencao]:
         return PcpProgramacaoManutencao.objects.filter(
             plano=plano,
@@ -276,8 +403,8 @@ class ProgramacaoManutencaoService:
         ).order_by("data_prevista", "id")
 
     @staticmethod
-    def _data_base(*, plano: PcpPlanoManutencao, referencia: date | None) -> date:
-        ultima_execucao = (
+    def _ultima_execucao_concluida(*, plano: PcpPlanoManutencao) -> PcpExecucaoManutencao | None:
+        return (
             PcpExecucaoManutencao.objects.filter(
                 programacao__plano=plano,
                 data_fim__isnull=False,
@@ -285,6 +412,3 @@ class ProgramacaoManutencaoService:
             .order_by("-data_fim")
             .first()
         )
-        if ultima_execucao and ultima_execucao.data_fim:
-            return timezone.localtime(ultima_execucao.data_fim).date()
-        return referencia or timezone.localdate()

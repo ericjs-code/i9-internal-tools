@@ -1,71 +1,240 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ ativo.codigo }} | PCP{% endblock %}
+{% block title %}{{ ativo.codigo }} | Gestão de Ativos{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start gap-3 mb-4">
         <div>
-            <div class="text-muted small">{{ ativo.area.nome }}</div>
-            <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">{{ ativo.codigo }} - {{ ativo.nome }}</h3>
-            <span class="badge bg-secondary">{{ ativo.get_status_display }}</span>
-            <span class="badge bg-light text-dark border">{{ ativo.get_criticidade_display }}</span>
+            <div class="text-muted small text-uppercase fw-semibold">Gestão de Ativos</div>
+            <h3 class="fw-bold mb-2" style="color: var(--azul-principal);">{{ ativo.codigo }} - {{ ativo.nome }}</h3>
+            {% if ativo.status == 'operando' %}
+                <span class="badge rounded-pill text-bg-success">{{ ativo.get_status_display }}</span>
+            {% elif ativo.status == 'manutencao' %}
+                <span class="badge rounded-pill text-bg-warning">{{ ativo.get_status_display }}</span>
+            {% elif ativo.status == 'parado' %}
+                <span class="badge rounded-pill text-bg-danger">{{ ativo.get_status_display }}</span>
+            {% else %}
+                <span class="badge rounded-pill text-bg-secondary">{{ ativo.get_status_display }}</span>
+            {% endif %}
+            <span class="badge rounded-pill text-bg-light border">Criticidade {{ ativo.get_criticidade_display }}</span>
         </div>
-        <div>
-            <a href="{% url 'pcp_listar_ativos' %}" class="btn btn-outline-secondary">Voltar</a>
-            <a href="{% url 'pcp_editar_ativo' ativo.id %}" class="btn btn-primary">Editar</a>
-            <a href="{% url 'pcp_iniciar_manutencao' ativo.id %}" class="btn btn-warning">Registrar manutenção</a>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'pcp_listar_ativos' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Voltar
+            </a>
+            <a href="{% url 'pcp_editar_ativo' ativo.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil me-1"></i>Editar
+            </a>
+            {% if parada_aberta %}
+                <a href="{% url 'pcp_fechar_parada' parada_aberta.id %}" class="btn btn-success">
+                    <i class="bi bi-play-circle me-1"></i>Encerrar parada
+                </a>
+            {% else %}
+                <a href="{% url 'pcp_abrir_parada' ativo.id %}" class="btn btn-outline-danger">
+                    <i class="bi bi-stop-circle me-1"></i>Registrar parada
+                </a>
+            {% endif %}
+            <a href="{% url 'pcp_iniciar_manutencao' ativo.id %}" class="btn btn-primary">
+                <i class="bi bi-tools me-1"></i>Iniciar manutenção
+            </a>
         </div>
     </div>
 
+    {% if parada_aberta %}
+    <div class="alert alert-danger border-0 shadow-sm rounded-4 mb-4" role="alert">
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+            <div>
+                <div class="fw-bold"><i class="bi bi-exclamation-octagon-fill me-2"></i>Ativo parado desde {{ parada_aberta.inicio|date:"d/m/Y H:i" }}</div>
+                <div class="mt-1">{{ parada_aberta.motivo }}</div>
+            </div>
+            <a href="{% url 'pcp_fechar_parada' parada_aberta.id %}" class="btn btn-light text-success fw-semibold">Registrar retorno à operação</a>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="row g-3 mb-4">
-        <div class="col-lg-4"><div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body"><div class="text-muted small">Fabricante / modelo</div><div class="fw-semibold">{{ ativo.fabricante|default:"-" }} / {{ ativo.modelo|default:"-" }}</div></div></div></div>
-        <div class="col-lg-4"><div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body"><div class="text-muted small">Número de série</div><div class="fw-semibold">{{ ativo.numero_serie|default:"-" }}</div></div></div></div>
-        <div class="col-lg-4"><div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body"><div class="text-muted small">Descrição</div><div>{{ ativo.descricao|default:"-" }}</div></div></div></div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div class="text-muted small mb-1">Fabricante</div>
+                    <div class="fw-semibold">{{ ativo.fabricante|default:"Não informado" }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div class="text-muted small mb-1">Modelo</div>
+                    <div class="fw-semibold">{{ ativo.modelo|default:"Não informado" }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div class="text-muted small mb-1">Número de série</div>
+                    <div class="fw-semibold">{{ ativo.numero_serie|default:"Não informado" }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div class="text-muted small mb-1">Descrição</div>
+                    <div>{{ ativo.descricao|default:"Não informada" }}</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-header bg-white border-0 pt-4 px-4"><h5 class="fw-bold">Planos e programações</h5></div>
+        <div class="card-body p-4">
+            <div class="d-flex flex-column flex-xl-row justify-content-between gap-3">
+                <div>
+                    <h5 class="fw-bold mb-1">Fluxo de manutenção</h5>
+                    <p class="text-muted mb-0">Siga a sequência operacional para manter agenda e histórico consistentes.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge text-bg-light border px-3 py-2">1. Ativo cadastrado</span>
+                    <span class="badge text-bg-light border px-3 py-2">2. Plano definido</span>
+                    <a href="{% url 'pcp_agenda' %}" class="badge text-bg-light border px-3 py-2 text-decoration-none">3. Consultar agenda</a>
+                    <span class="badge text-bg-light border px-3 py-2">4. Executar e documentar</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
+        <div class="card-header bg-white border-0 p-4 d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+            <div>
+                <h5 class="fw-bold mb-1">Planos e próximas programações</h5>
+                <div class="small text-muted">Cada plano gera uma programação a partir da data de início informada.</div>
+            </div>
+            <a href="{% url 'pcp_criar_plano' ativo.id %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Novo plano
+            </a>
+        </div>
         <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead><tr><th class="px-4">Plano</th><th>Tipo</th><th>Intervalo</th><th>Próxima programação</th></tr></thead>
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="px-4">Plano</th>
+                        <th>Tipo</th>
+                        <th>Início</th>
+                        <th>Recorrência</th>
+                        <th>Próxima manutenção</th>
+                        <th class="text-end px-4">Ações</th>
+                    </tr>
+                </thead>
                 <tbody>
                 {% for plano in ativo.planos_manutencao.all %}
-                    <tr><td class="px-4">{{ plano.nome }}</td><td>{{ plano.get_tipo_display }}</td><td>{{ plano.intervalo_dias }} dias</td><td>{% for p in plano.programacoes.all %}{% if p.status == 'planejada' %}{{ p.data_prevista|date:"d/m/Y" }}{% endif %}{% empty %}-{% endfor %}</td></tr>
+                    <tr>
+                        <td class="px-4">
+                            <div class="fw-semibold">{{ plano.nome }}</div>
+                            <small class="text-muted">{{ plano.descricao|default:"Sem descrição" }}</small>
+                        </td>
+                        <td>{{ plano.get_tipo_display }}</td>
+                        <td>{{ plano.data_inicio|date:"d/m/Y" }}</td>
+                        <td>A cada {{ plano.intervalo_dias }} dias</td>
+                        <td>
+                            {% for programacao in plano.programacoes.all %}
+                                {% if programacao.status == 'planejada' %}
+                                    <span class="badge rounded-pill text-bg-primary">{{ programacao.data_prevista|date:"d/m/Y" }}</span>
+                                {% endif %}
+                            {% empty %}
+                                <span class="text-muted">Sem programação ativa</span>
+                            {% endfor %}
+                        </td>
+                        <td class="text-end px-4 text-nowrap">
+                            <a href="{% url 'pcp_editar_plano' plano.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                            <form method="post" action="{% url 'pcp_desativar_plano' plano.id %}" class="d-inline" onsubmit="return confirm('Confirma a desativação deste plano? A programação pendente também será cancelada.');">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-outline-danger">Desativar</button>
+                            </form>
+                        </td>
+                    </tr>
                 {% empty %}
-                    <tr><td colspan="4" class="text-center text-muted py-4">Nenhum plano cadastrado.</td></tr>
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <i class="bi bi-calendar2-plus fs-2 text-muted d-block mb-2"></i>
+                            <div class="text-muted mb-3">Este ativo ainda não possui plano de manutenção.</div>
+                            <a href="{% url 'pcp_criar_plano' ativo.id %}" class="btn btn-sm btn-primary">Cadastrar primeiro plano</a>
+                        </td>
+                    </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 
-    <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-header bg-white border-0 pt-4 px-4"><h5 class="fw-bold">Histórico de manutenções</h5></div>
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-white border-0 p-4 d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+            <div>
+                <h5 class="fw-bold mb-1">Execuções e histórico</h5>
+                <div class="small text-muted">Manutenções em andamento e registros documentais concluídos.</div>
+            </div>
+            <a href="{% url 'pcp_historico' %}" class="btn btn-outline-primary">
+                <i class="bi bi-clock-history me-1"></i>Histórico geral
+            </a>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th class="px-4">Protocolo</th><th>Tipo</th><th>Início</th><th>Fim</th><th>Responsável</th><th></th></tr></thead>
+                <thead class="bg-light">
+                    <tr>
+                        <th class="px-4">Início</th>
+                        <th>Tipo</th>
+                        <th>Plano</th>
+                        <th>Responsável</th>
+                        <th>Situação</th>
+                        <th class="text-end px-4">Registro</th>
+                    </tr>
+                </thead>
                 <tbody>
                 {% for execucao in ativo.execucoes_manutencao.all %}
                     <tr>
-                        <td class="px-4 font-monospace small">{{ execucao.protocolo }}</td>
+                        <td class="px-4 text-nowrap">{{ execucao.data_inicio|date:"d/m/Y H:i" }}</td>
                         <td>{{ execucao.get_tipo_display }}</td>
-                        <td>{{ execucao.data_inicio|date:"d/m/Y H:i" }}</td>
-                        <td>{{ execucao.data_fim|date:"d/m/Y H:i"|default:"Em execução" }}</td>
-                        <td>{{ execucao.responsavel|default:"-" }}</td>
-                        <td><a href="{% url 'pcp_detalhar_execucao' execucao.id %}" class="btn btn-sm btn-outline-primary">Abrir</a></td>
+                        <td>
+                            {% if execucao.programacao %}
+                                {{ execucao.programacao.plano.nome }}
+                            {% else %}
+                                <span class="text-muted">Sem plano vinculado</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ execucao.responsavel|default:"Não informado" }}</td>
+                        <td>
+                            {% if execucao.data_fim %}
+                                <span class="badge rounded-pill text-bg-success">Concluída</span>
+                            {% else %}
+                                <span class="badge rounded-pill text-bg-warning">Em execução</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end px-4">
+                            <a href="{% url 'pcp_detalhar_execucao' execucao.id %}" class="btn btn-sm {% if execucao.data_fim %}btn-outline-primary{% else %}btn-primary{% endif %}">
+                                {% if execucao.data_fim %}Consultar{% else %}Continuar{% endif %}
+                            </a>
+                        </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="6" class="text-center text-muted py-4">Nenhuma manutenção registrada.</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted py-5">Nenhuma manutenção registrada para este ativo.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 
-    <form method="post" action="{% url 'pcp_desativar_ativo' ativo.id %}" class="mt-4 text-end" onsubmit="return confirm('Confirma a desativação deste ativo?');">
-        {% csrf_token %}
-        <button class="btn btn-outline-danger">Desativar ativo</button>
-    </form>
+    <div class="card border-danger-subtle bg-danger-subtle rounded-4 mt-4">
+        <div class="card-body p-4 d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+            <div>
+                <div class="fw-bold text-danger-emphasis">Desativação administrativa</div>
+                <div class="small text-danger-emphasis">Use somente quando o ativo não fizer mais parte da operação. O histórico será preservado.</div>
+            </div>
+            <form method="post" action="{% url 'pcp_desativar_ativo' ativo.id %}" onsubmit="return confirm('Confirma a desativação deste ativo? Esta ação não representa uma parada operacional.');">
+                {% csrf_token %}
+                <button class="btn btn-outline-danger">Desativar ativo</button>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}

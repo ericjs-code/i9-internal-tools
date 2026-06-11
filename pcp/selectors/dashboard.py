@@ -16,7 +16,7 @@ class PcpDashboardSelector:
         data_inicio = hoje - timedelta(days=dias)
         data_limite_preventivas = hoje + timedelta(days=dias)
 
-        ativos = PcpAtivo.objects.select_related("area")
+        ativos = PcpAtivo.objects.all()
         contagens_ativos = ativos.aggregate(
             total=Count("id"),
             operando=Count("id", filter=Q(status=StatusAtivo.OPERANDO)),
@@ -38,7 +38,7 @@ class PcpDashboardSelector:
             downtimes_periodo.filter(duracao_minutos__isnull=False)
             .values("ativo_pcp__codigo", "ativo_pcp__nome")
             .annotate(total_minutos=Sum("duracao_minutos"), total_eventos=Count("id"))
-            .order_by("-total_minutos")[:8]
+            .order_by("-total_minutos", "ativo_pcp__codigo")[:8]
         )
 
         return {
@@ -60,7 +60,7 @@ class PcpDashboardSelector:
             "downtimes_abertos": downtimes_abertos[:10],
             "preventivas_atrasadas": preventivas_atrasadas[:10],
             "preventivas_proximas": preventivas_proximas[:10],
-            "ativos_criticos": ativos.filter(criticidade="critica").order_by("codigo")[:10],
+            "ativos_criticos": ativos.filter(criticidade="critica").order_by("codigo", "id")[:10],
             "top_downtime": top_downtime,
             "top_downtime_labels": [item["ativo_pcp__codigo"] or "N/A" for item in top_downtime],
             "top_downtime_data": [int(item["total_minutos"] or 0) for item in top_downtime],
@@ -75,29 +75,29 @@ class PcpDashboardSelector:
     @staticmethod
     def _downtimes_abertos() -> QuerySet[PcpDowntime]:
         return (
-            PcpDowntime.objects.select_related("ativo_pcp", "ativo_pcp__area", "responsavel")
+            PcpDowntime.objects.select_related("ativo_pcp", "responsavel")
             .filter(fim__isnull=True)
-            .order_by("inicio")
+            .order_by("inicio", "id")
         )
 
     @staticmethod
     def _preventivas_atrasadas(*, hoje: date) -> QuerySet[PcpProgramacaoManutencao]:
         return (
-            PcpProgramacaoManutencao.objects.select_related("plano", "plano__ativo_pcp", "plano__ativo_pcp__area")
+            PcpProgramacaoManutencao.objects.select_related("plano", "plano__ativo_pcp")
             .filter(status=StatusManutencao.PLANEJADA, data_prevista__lt=hoje)
-            .order_by("data_prevista")
+            .order_by("data_prevista", "plano__ativo_pcp__codigo", "id")
         )
 
     @staticmethod
     def _preventivas_proximas(*, hoje: date, limite: date) -> QuerySet[PcpProgramacaoManutencao]:
         return (
-            PcpProgramacaoManutencao.objects.select_related("plano", "plano__ativo_pcp", "plano__ativo_pcp__area")
+            PcpProgramacaoManutencao.objects.select_related("plano", "plano__ativo_pcp")
             .filter(
                 status=StatusManutencao.PLANEJADA,
                 data_prevista__gte=hoje,
                 data_prevista__lte=limite,
             )
-            .order_by("data_prevista")
+            .order_by("data_prevista", "plano__ativo_pcp__codigo", "id")
         )
 
     @staticmethod

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Agenda de Manutenção | I9TMG{% endblock %}
+
+{% block content %}
+{% now "Y-m-d" as hoje %}
+<div class="container-fluid py-3">
+    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">Agenda de Manutenção</h3>
+            <p class="text-muted mb-0">Programações preventivas organizadas por prazo e prioridade.</p>
+        </div>
+        <a href="{% url 'pcp_listar_ativos' %}" class="btn btn-outline-primary">
+            <i class="bi bi-gear-wide-connected me-1"></i>Consultar ativos
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-semibold me-2">Período:</span>
+            <a href="?periodo=atrasadas" class="btn btn-sm {% if periodo == 'atrasadas' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+                Atrasadas
+            </a>
+            <a href="?periodo=hoje" class="btn btn-sm {% if periodo == 'hoje' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                Hoje
+            </a>
+            <a href="?periodo=7" class="btn btn-sm {% if periodo == '7' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                Próximos 7 dias
+            </a>
+            <a href="?periodo=15" class="btn btn-sm {% if periodo == '15' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                Próximos 15 dias
+            </a>
+            <a href="?periodo=30" class="btn btn-sm {% if periodo == '30' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                Próximos 30 dias
+            </a>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="px-4">Data prevista</th>
+                        <th>Ativo</th>
+                        <th>Plano</th>
+                        <th>Tipo</th>
+                        <th>Situação</th>
+                        <th class="text-end px-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for programacao in programacoes %}
+                    <tr>
+                        <td class="px-4">
+                            <span class="fw-semibold">{{ programacao.data_prevista|date:"d/m/Y" }}</span>
+                        </td>
+                        <td>
+                            <div class="fw-semibold">{{ programacao.plano.ativo_pcp.codigo }}</div>
+                            <small class="text-muted">{{ programacao.plano.ativo_pcp.nome }}</small>
+                        </td>
+                        <td>{{ programacao.plano.nome }}</td>
+                        <td>{{ programacao.plano.get_tipo_display }}</td>
+                        <td>
+                            {% if periodo == 'atrasadas' %}
+                                <span class="badge rounded-pill text-bg-danger">Atrasada</span>
+                            {% elif programacao.data_prevista|date:"Y-m-d" == hoje %}
+                                <span class="badge rounded-pill text-bg-warning">Vence hoje</span>
+                            {% else %}
+                                <span class="badge rounded-pill text-bg-primary">Programada</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end px-4 text-nowrap">
+                            <a href="{% url 'pcp_detalhar_ativo' programacao.plano.ativo_pcp.id %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-eye me-1"></i>Ativo
+                            </a>
+                            <a href="{% url 'pcp_iniciar_manutencao' programacao.plano.ativo_pcp.id %}" class="btn btn-sm btn-primary">
+                                <i class="bi bi-play-fill me-1"></i>Iniciar
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <i class="bi bi-calendar2-check fs-2 text-muted d-block mb-2"></i>
+                            <span class="text-muted">Nenhuma manutenção encontrada para o período selecionado.</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

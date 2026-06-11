@@ -7,11 +7,26 @@
     <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center mb-4 gap-3">
         <div>
             <h3 class="fw-bold mb-0" style="color: var(--azul-principal);">
-                <i class="bi bi-clipboard2-pulse text-primary me-2"></i>Dashboard PCP
+                <i class="bi bi-clipboard2-pulse text-primary me-2"></i>Gestão de Ativos
             </h3>
-            <p class="text-muted mb-0">Gestão de ativos, downtimes e preventivas de produção.</p>
+            <p class="text-muted mb-0">Visão operacional de disponibilidade, paradas e manutenções programadas.</p>
         </div>
-        <div class="btn-group" role="group" aria-label="Período">
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'pcp_agenda' %}" class="btn btn-outline-primary">
+                <i class="bi bi-calendar3 me-1"></i>Agenda
+            </a>
+            <a href="{% url 'pcp_criar_ativo' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Novo ativo
+            </a>
+        </div>
+    </div>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div class="small text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            Parado exige uma parada aberta. Em manutenção exige uma execução em andamento. Inativo é uma condição administrativa.
+        </div>
+        <div class="btn-group" role="group" aria-label="Período dos indicadores">
             <a href="?periodo=7" class="btn btn-sm {% if dias == 7 %}btn-primary{% else %}btn-outline-primary{% endif %}">7 dias</a>
             <a href="?periodo=30" class="btn btn-sm {% if dias == 30 %}btn-primary{% else %}btn-outline-primary{% endif %}">30 dias</a>
             <a href="?periodo=90" class="btn btn-sm {% if dias == 90 %}btn-primary{% else %}btn-outline-primary{% endif %}">90 dias</a>
@@ -112,18 +127,20 @@
                         <thead class="bg-light">
                             <tr>
                                 <th class="px-4">Ativo</th>
-                                <th>Área</th>
                                 <th>Início</th>
                                 <th>Motivo</th>
+                                <th class="text-end px-4">Ação</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for downtime in downtimes_abertos %}
                             <tr>
                                 <td class="px-4 fw-semibold">{{ downtime.ativo_pcp.codigo }}</td>
-                                <td>{{ downtime.ativo_pcp.area.nome }}</td>
                                 <td>{{ downtime.inicio|date:"d/m/Y H:i" }}</td>
                                 <td class="text-truncate" style="max-width: 220px;" title="{{ downtime.motivo }}">{{ downtime.motivo }}</td>
+                                <td class="text-end px-4">
+                                    <a href="{% url 'pcp_fechar_parada' downtime.id %}" class="btn btn-sm btn-outline-success">Encerrar</a>
+                                </td>
                             </tr>
                             {% empty %}
                             <tr>
@@ -142,7 +159,7 @@
                     <h6 class="fw-bold text-warning mb-0">
                         <i class="bi bi-calendar-x me-2"></i>Preventivas atrasadas
                     </h6>
-                    <span class="badge bg-warning text-dark">{{ preventivas_atrasadas_count }}</span>
+                    <a href="{% url 'pcp_agenda' %}?periodo=atrasadas" class="badge bg-warning text-dark text-decoration-none">{{ preventivas_atrasadas_count }}</a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -151,7 +168,7 @@
                                 <th class="px-4">Ativo</th>
                                 <th>Plano</th>
                                 <th>Prevista</th>
-                                <th>Status</th>
+                                <th class="text-end px-4">Ação</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -160,7 +177,9 @@
                                 <td class="px-4 fw-semibold">{{ preventiva.plano.ativo_pcp.codigo }}</td>
                                 <td>{{ preventiva.plano.nome }}</td>
                                 <td>{{ preventiva.data_prevista|date:"d/m/Y" }}</td>
-                                <td><span class="badge bg-danger">{{ preventiva.get_status_display }}</span></td>
+                                <td class="text-end px-4">
+                                    <a href="{% url 'pcp_iniciar_manutencao' preventiva.plano.ativo_pcp.id %}" class="btn btn-sm btn-outline-danger">Iniciar</a>
+                                </td>
                             </tr>
                             {% empty %}
                             <tr>
@@ -179,25 +198,27 @@
                     <h6 class="fw-bold text-secondary mb-0">
                         <i class="bi bi-calendar-check me-2"></i>Próximas preventivas
                     </h6>
-                    <span class="badge bg-primary">{{ preventivas_proximas_count }}</span>
+                    <a href="{% url 'pcp_agenda' %}" class="badge bg-primary text-decoration-none">{{ preventivas_proximas_count }}</a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="bg-light">
                             <tr>
                                 <th class="px-4">Ativo</th>
-                                <th>Área</th>
                                 <th>Plano</th>
                                 <th>Data</th>
+                                <th class="text-end px-4">Ação</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for preventiva in preventivas_proximas %}
                             <tr>
                                 <td class="px-4 fw-semibold">{{ preventiva.plano.ativo_pcp.codigo }}</td>
-                                <td>{{ preventiva.plano.ativo_pcp.area.nome }}</td>
                                 <td>{{ preventiva.plano.nome }}</td>
                                 <td>{{ preventiva.data_prevista|date:"d/m/Y" }}</td>
+                                <td class="text-end px-4">
+                                    <a href="{% url 'pcp_detalhar_ativo' preventiva.plano.ativo_pcp.id %}" class="btn btn-sm btn-outline-primary">Consultar</a>
+                                </td>
                             </tr>
                             {% empty %}
                             <tr>
@@ -219,10 +240,10 @@
                 </div>
                 <div class="list-group list-group-flush">
                     {% for ativo in ativos_criticos %}
-                    <div class="list-group-item px-4 py-3 d-flex justify-content-between align-items-center">
+                    <a href="{% url 'pcp_detalhar_ativo' ativo.id %}" class="list-group-item list-group-item-action px-4 py-3 d-flex justify-content-between align-items-center">
                         <div>
                             <div class="fw-semibold">{{ ativo.codigo }} - {{ ativo.nome }}</div>
-                            <div class="small text-muted">{{ ativo.area.nome }}</div>
+                            <div class="small text-muted">Criticidade {{ ativo.get_criticidade_display }}</div>
                         </div>
                         {% if ativo.status == 'parado' %}
                             <span class="badge bg-danger">Parado</span>
@@ -231,7 +252,7 @@
                         {% else %}
                             <span class="badge bg-success">{{ ativo.get_status_display }}</span>
                         {% endif %}
-                    </div>
+                    </a>
                     {% empty %}
                     <div class="text-center text-muted py-4">Nenhum ativo crítico cadastrado.</div>
                     {% endfor %}

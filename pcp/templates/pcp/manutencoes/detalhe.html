@@ -4,15 +4,23 @@
 
 {% block content %}
 <div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-start mb-4">
+    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start mb-4 gap-3">
         <div>
-            <div class="text-muted small font-monospace">{{ execucao.protocolo }}</div>
+            <div class="text-muted small text-uppercase fw-semibold">Registro de manutenção</div>
             <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">{{ execucao.ativo_pcp.codigo }} - {{ execucao.get_tipo_display }}</h3>
-            <span class="badge {% if execucao.data_fim %}bg-success{% else %}bg-warning text-dark{% endif %}">{% if execucao.data_fim %}Concluída{% else %}Em execução{% endif %}</span>
+            <span class="badge rounded-pill {% if execucao.data_fim %}text-bg-success{% else %}text-bg-warning{% endif %}">
+                {% if execucao.data_fim %}Concluída{% else %}Em execução{% endif %}
+            </span>
+            <span class="badge rounded-pill text-bg-light border font-monospace">{{ execucao.protocolo }}</span>
         </div>
-        <div>
-            <a href="{% url 'pcp_detalhar_ativo' execucao.ativo_pcp.id %}" class="btn btn-outline-secondary">Voltar ao ativo</a>
-            {% if not execucao.data_fim %}<a href="{% url 'pcp_concluir_manutencao' execucao.id %}" class="btn btn-success">Concluir manutenção</a>{% endif %}
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'pcp_detalhar_ativo' execucao.ativo_pcp.id %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Voltar ao ativo</a>
+            {% if execucao.data_fim and perms.pcp.corrigir_execucao_concluida %}
+                <a href="{% url 'pcp_corrigir_manutencao' execucao.id %}" class="btn btn-outline-primary"><i class="bi bi-pencil-square me-1"></i>Corrigir documentação</a>
+            {% endif %}
+            {% if not execucao.data_fim %}
+                <a href="{% url 'pcp_concluir_manutencao' execucao.id %}" class="btn btn-success"><i class="bi bi-check-circle me-1"></i>Concluir manutenção</a>
+            {% endif %}
         </div>
     </div>
 
@@ -22,12 +30,15 @@
                 <div class="card-body p-4">
                     <h5 class="fw-bold mb-3">Registro documental</h5>
                     <dl class="row mb-0">
+                        <dt class="col-sm-4">Plano</dt><dd class="col-sm-8">{% if execucao.snapshot_plano_nome %}{{ execucao.snapshot_plano_nome }}{% elif execucao.programacao %}{{ execucao.programacao.plano.nome }}{% else %}Sem plano vinculado{% endif %}</dd>
                         <dt class="col-sm-4">Início</dt><dd class="col-sm-8">{{ execucao.data_inicio|date:"d/m/Y H:i" }}</dd>
                         <dt class="col-sm-4">Fim</dt><dd class="col-sm-8">{{ execucao.data_fim|date:"d/m/Y H:i"|default:"Em execução" }}</dd>
+                        <dt class="col-sm-4">Responsável</dt><dd class="col-sm-8">{{ execucao.responsavel|default:"-" }}</dd>
                         <dt class="col-sm-4">Diagnóstico</dt><dd class="col-sm-8">{{ execucao.diagnostico|default:"-" }}</dd>
                         <dt class="col-sm-4">Serviços executados</dt><dd class="col-sm-8">{{ execucao.servicos_executados|default:"-" }}</dd>
                         <dt class="col-sm-4">Resultado</dt><dd class="col-sm-8">{{ execucao.resultado|default:"-" }}</dd>
                         <dt class="col-sm-4">Recomendações</dt><dd class="col-sm-8">{{ execucao.recomendacoes|default:"-" }}</dd>
+                        <dt class="col-sm-4">Observação</dt><dd class="col-sm-8">{{ execucao.observacao|default:"-" }}</dd>
                     </dl>
                 </div>
             </div>
@@ -38,9 +49,12 @@
                 <div class="card-body p-4">
                     <h5 class="fw-bold mb-3">Adicionar evidência</h5>
                     {% for field in evidencia_form %}
-                    <div class="mb-3"><label class="form-label fw-semibold">{{ field.label }}</label>{{ field }}</div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">{{ field.label }}</label>
+                        {{ field }}
+                    </div>
                     {% endfor %}
-                    <button class="btn btn-primary">Enviar arquivo</button>
+                    <button class="btn btn-primary"><i class="bi bi-paperclip me-1"></i>Anexar evidência</button>
                     <div class="small text-muted mt-2">PDF, JPEG, PNG ou WebP.</div>
                 </div>
             </form>
@@ -50,24 +64,52 @@
     <div class="row g-3">
         <div class="col-lg-7">
             <div class="card border-0 shadow-sm rounded-4">
-                <div class="card-header bg-white border-0 pt-4 px-4"><h5 class="fw-bold">Evidências</h5></div>
+                <div class="card-header bg-white border-0 pt-4 px-4">
+                    <h5 class="fw-bold mb-0">Evidências</h5>
+                    <div class="small text-muted">Arquivos anexados permanecem preservados mesmo quando desativados.</div>
+                </div>
                 <div class="list-group list-group-flush">
                     {% for evidencia in execucao.evidencias.all %}
-                    <div class="list-group-item px-4 py-3 d-flex justify-content-between align-items-center">
-                        <div><div class="fw-semibold">{{ evidencia.nome_original }}</div><div class="small text-muted">{{ evidencia.descricao|default:evidencia.get_tipo_display }} · {{ evidencia.created_at|date:"d/m/Y H:i" }}</div></div>
-                        <a href="{% url 'pcp_baixar_evidencia' evidencia.id %}" class="btn btn-sm btn-outline-primary">Download</a>
+                    <div class="list-group-item px-4 py-3">
+                        <div class="d-flex flex-column flex-xl-row justify-content-between gap-3">
+                            <div>
+                                <div class="fw-semibold">{{ evidencia.nome_original }}</div>
+                                <div class="small text-muted">{{ evidencia.descricao|default:evidencia.get_tipo_display }} · {{ evidencia.created_at|date:"d/m/Y H:i" }}</div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 justify-content-xl-end">
+                                <a href="{% url 'pcp_baixar_evidencia' evidencia.id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-download me-1"></i>Download</a>
+                                {% if perms.pcp.desativar_evidencia_manutencao %}
+                                <form method="post" action="{% url 'pcp_desativar_evidencia' evidencia.id %}" class="d-flex gap-2" onsubmit="return confirm('Confirma a desativação desta evidência? O arquivo será preservado para auditoria.');">
+                                    {% csrf_token %}
+                                    <input name="justificativa" class="form-control form-control-sm" placeholder="Justificativa" required>
+                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-slash-circle me-1"></i>Desativar</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
-                    {% empty %}<div class="text-center text-muted py-4">Nenhuma evidência anexada.</div>{% endfor %}
+                    {% empty %}
+                    <div class="text-center text-muted py-4">Nenhuma evidência anexada.</div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
         <div class="col-lg-5">
             <div class="card border-0 shadow-sm rounded-4">
-                <div class="card-header bg-white border-0 pt-4 px-4"><h5 class="fw-bold">Auditoria</h5></div>
+                <div class="card-header bg-white border-0 pt-4 px-4">
+                    <h5 class="fw-bold mb-0">Auditoria</h5>
+                    <div class="small text-muted">Linha do tempo dos eventos documentais.</div>
+                </div>
                 <div class="list-group list-group-flush">
                     {% for evento in execucao.eventos_auditoria.all %}
-                    <div class="list-group-item px-4 py-3"><div class="fw-semibold">{{ evento.get_tipo_evento_display }}</div><div class="small text-muted">{{ evento.criado_em|date:"d/m/Y H:i" }} · {{ evento.usuario|default:"Sistema" }}</div>{% if evento.justificativa %}<div class="small mt-1">{{ evento.justificativa }}</div>{% endif %}</div>
-                    {% empty %}<div class="text-center text-muted py-4">Sem eventos registrados.</div>{% endfor %}
+                    <div class="list-group-item px-4 py-3">
+                        <div class="fw-semibold">{{ evento.get_tipo_evento_display }}</div>
+                        <div class="small text-muted">{{ evento.criado_em|date:"d/m/Y H:i" }} · {{ evento.usuario|default:"Sistema" }}</div>
+                        {% if evento.justificativa %}<div class="small mt-1">{{ evento.justificativa }}</div>{% endif %}
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">Sem eventos registrados.</div>
+                    {% endfor %}
                 </div>
             </div>
         </div>

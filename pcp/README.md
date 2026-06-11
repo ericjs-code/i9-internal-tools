@@ -34,6 +34,11 @@ As invariantes criticas sao garantidas por constraints PostgreSQL e complementad
 - API operacional: grupos `PCP`, `TI`, `Diretoria` ou superusuario.
 - API Power BI: header `Authorization: Api-Key <token>`, configurado por `POWER_BI_API_KEY`.
 
+## Documentacao da API
+
+- Contrato tecnico da API: [`api/README.md`](api/README.md)
+- POP para conexao no Power BI: [`POP_POWER_BI_API.md`](POP_POWER_BI_API.md)
+
 ## Tarefas Celery
 
 - `pcp.run_pcp_estoque_etl`

@@ -24,6 +24,7 @@ class AreaProducaoSerializer(serializers.ModelSerializer):
 
 
 class AtivoSerializer(serializers.ModelSerializer):
+    area_codigo = serializers.CharField(source="area.codigo", read_only=True)
     area_nome = serializers.CharField(source="area.nome", read_only=True)
 
     class Meta:
@@ -37,6 +38,7 @@ class AtivoSerializer(serializers.ModelSerializer):
             "modelo",
             "numero_serie",
             "area",
+            "area_codigo",
             "area_nome",
             "status",
             "criticidade",
@@ -44,13 +46,12 @@ class AtivoSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "area_nome", "ativo", "created_at", "updated_at"]
+        read_only_fields = ["id", "area_codigo", "area_nome", "ativo", "created_at", "updated_at"]
 
 
 class AtivoCreateSerializer(serializers.Serializer):
     codigo = serializers.CharField(max_length=50)
     nome = serializers.CharField(max_length=150)
-    area = serializers.PrimaryKeyRelatedField(queryset=PcpAreaProducao.objects.all())
     descricao = serializers.CharField(required=False, allow_blank=True)
     fabricante = serializers.CharField(required=False, allow_blank=True, max_length=120)
     modelo = serializers.CharField(required=False, allow_blank=True, max_length=120)
@@ -72,6 +73,7 @@ class PlanoManutencaoSerializer(serializers.ModelSerializer):
             "nome",
             "descricao",
             "intervalo_dias",
+            "data_inicio",
             "ativo",
             "created_at",
             "updated_at",
@@ -82,6 +84,7 @@ class PlanoManutencaoSerializer(serializers.ModelSerializer):
 class PlanoManutencaoCreateSerializer(serializers.Serializer):
     ativo_pcp = serializers.PrimaryKeyRelatedField(queryset=PcpAtivo.objects.all())
     nome = serializers.CharField(max_length=150)
+    data_inicio = serializers.DateField()
     tipo = serializers.ChoiceField(choices=TipoManutencao.choices, required=False)
     descricao = serializers.CharField(required=False, allow_blank=True)
     intervalo_dias = serializers.IntegerField(min_value=1)

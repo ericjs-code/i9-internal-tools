@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Histórico de Manutenções | I9TMG{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">Histórico de Manutenções</h3>
+            <p class="text-muted mb-0">Registros concluídos para consulta operacional e auditoria.</p>
+        </div>
+        <a href="{% url 'pcp_agenda' %}" class="btn btn-outline-primary">
+            <i class="bi bi-calendar3 me-1"></i>Consultar agenda
+        </a>
+    </div>
+
+    <form method="get" class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body row g-3 align-items-end">
+            <div class="col-lg-9">
+                <label for="busca-historico" class="form-label fw-semibold">Buscar no histórico</label>
+                <input
+                    id="busca-historico"
+                    name="q"
+                    value="{{ busca }}"
+                    class="form-control"
+                    placeholder="Buscar por código, nome do ativo ou plano"
+                >
+            </div>
+            <div class="col-lg-3 d-grid">
+                <button class="btn btn-outline-primary">
+                    <i class="bi bi-search me-1"></i>Buscar
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="px-4">Conclusão</th>
+                        <th>Ativo</th>
+                        <th>Plano</th>
+                        <th>Tipo</th>
+                        <th>Responsável</th>
+                        <th class="text-center">Evidências</th>
+                        <th class="text-end px-4">Auditoria</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for execucao in execucoes %}
+                    <tr>
+                        <td class="px-4 text-nowrap">
+                            <div class="fw-semibold">{{ execucao.data_fim|date:"d/m/Y" }}</div>
+                            <small class="text-muted">{{ execucao.data_fim|date:"H:i" }}</small>
+                        </td>
+                        <td>
+                            <div class="fw-semibold">
+                                {{ execucao.snapshot_ativo_codigo|default:execucao.ativo_pcp.codigo }}
+                            </div>
+                            <small class="text-muted">
+                                {{ execucao.snapshot_ativo_nome|default:execucao.ativo_pcp.nome }}
+                            </small>
+                        </td>
+                        <td>
+                            {% if execucao.snapshot_plano_nome %}
+                                {{ execucao.snapshot_plano_nome }}
+                            {% elif execucao.programacao %}
+                                {{ execucao.programacao.plano.nome }}
+                            {% else %}
+                                <span class="text-muted">Sem plano vinculado</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge rounded-pill text-bg-light border">
+                                {{ execucao.get_tipo_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <div>{{ execucao.responsavel|default:"Não informado" }}</div>
+                            {% if execucao.concluido_por and execucao.concluido_por != execucao.responsavel %}
+                                <small class="text-muted">Concluída por {{ execucao.concluido_por }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge rounded-pill text-bg-secondary">
+                                {{ execucao.evidencias.all|length }}
+                            </span>
+                        </td>
+                        <td class="text-end px-4">
+                            <a href="{% url 'pcp_detalhar_execucao' execucao.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-file-earmark-text me-1"></i>Consultar
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <i class="bi bi-clock-history fs-2 text-muted d-block mb-2"></i>
+                            <span class="text-muted">
+                                {% if busca %}
+                                    Nenhum registro encontrado para a busca informada.
+                                {% else %}
+                                    Nenhuma manutenção concluída foi registrada.
+                                {% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

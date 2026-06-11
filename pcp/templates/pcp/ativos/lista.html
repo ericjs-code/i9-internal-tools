@@ -4,10 +4,10 @@
 
 {% block content %}
 <div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center mb-4 gap-3">
         <div>
-            <h3 class="fw-bold mb-0" style="color: var(--azul-principal);">Cadastro de Ativos</h3>
-            <p class="text-muted mb-0">Máquinas e equipamentos monitorados pelo PCP.</p>
+            <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">Ativos</h3>
+            <p class="text-muted mb-0">Máquinas e equipamentos monitorados pela gestão de ativos.</p>
         </div>
         <a href="{% url 'pcp_criar_ativo' %}" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i>Novo ativo
@@ -15,8 +15,9 @@
     </div>
 
     <form method="get" class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-body row g-3">
+        <div class="card-body row g-3 align-items-end">
             <div class="col-lg-9">
+                <label class="form-label fw-semibold">Buscar ativo</label>
                 <input name="q" value="{{ filtros.q }}" class="form-control" placeholder="Buscar por código, nome ou número de série">
             </div>
             <div class="col-lg-3 d-grid">
@@ -32,7 +33,6 @@
                     <tr>
                         <th class="px-4">Código</th>
                         <th>Ativo</th>
-                        <th>Área</th>
                         <th>Status</th>
                         <th>Criticidade</th>
                         <th class="text-end px-4">Ações</th>
@@ -43,15 +43,36 @@
                     <tr>
                         <td class="px-4 fw-semibold">{{ ativo.codigo }}</td>
                         <td>{{ ativo.nome }}</td>
-                        <td>{{ ativo.area.nome }}</td>
-                        <td><span class="badge bg-secondary">{{ ativo.get_status_display }}</span></td>
-                        <td>{{ ativo.get_criticidade_display }}</td>
+                        <td>
+                            {% if ativo.status == 'operando' %}
+                                <span class="badge rounded-pill text-bg-success">{{ ativo.get_status_display }}</span>
+                            {% elif ativo.status == 'manutencao' %}
+                                <span class="badge rounded-pill text-bg-warning">{{ ativo.get_status_display }}</span>
+                            {% elif ativo.status == 'parado' %}
+                                <span class="badge rounded-pill text-bg-danger">{{ ativo.get_status_display }}</span>
+                            {% else %}
+                                <span class="badge rounded-pill text-bg-secondary">{{ ativo.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ativo.criticidade == 'critica' %}
+                                <span class="badge rounded-pill text-bg-danger">{{ ativo.get_criticidade_display }}</span>
+                            {% elif ativo.criticidade == 'alta' %}
+                                <span class="badge rounded-pill text-bg-warning">{{ ativo.get_criticidade_display }}</span>
+                            {% elif ativo.criticidade == 'media' %}
+                                <span class="badge rounded-pill text-bg-info">{{ ativo.get_criticidade_display }}</span>
+                            {% else %}
+                                <span class="badge rounded-pill text-bg-secondary">{{ ativo.get_criticidade_display }}</span>
+                            {% endif %}
+                        </td>
                         <td class="text-end px-4">
-                            <a href="{% url 'pcp_detalhar_ativo' ativo.id %}" class="btn btn-sm btn-outline-primary">Detalhes</a>
+                            <a href="{% url 'pcp_detalhar_ativo' ativo.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye me-1"></i>Detalhes
+                            </a>
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6" class="text-center text-muted py-5">Nenhum ativo cadastrado.</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted py-5">Nenhum ativo cadastrado.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

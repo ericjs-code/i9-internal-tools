@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Corrigir manutenção {{ execucao.protocolo }} | PCP{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start mb-4 gap-3">
+        <div>
+            <div class="text-muted small font-monospace">{{ execucao.protocolo }}</div>
+            <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">Correção documental de manutenção</h3>
+            <p class="text-muted mb-0">Campos documentais podem ser corrigidos, mas toda alteração exige justificativa e fica registrada em auditoria.</p>
+        </div>
+        <a href="{% url 'pcp_detalhar_execucao' execucao.id %}" class="btn btn-outline-secondary">Voltar</a>
+    </div>
+
+    <form method="post" class="card border-0 shadow-sm rounded-4">
+        {% csrf_token %}
+        <div class="card-body p-4">
+            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+            <div class="row g-3">
+                {% for field in form %}
+                <div class="col-12">
+                    <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="card-footer bg-white border-0 p-4 pt-0 d-flex justify-content-between align-items-center">
+            <span class="small text-muted">Esta ação não altera protocolo, ativo, datas base ou responsável inicial.</span>
+            <button type="submit" class="btn btn-primary px-4">Registrar correção</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

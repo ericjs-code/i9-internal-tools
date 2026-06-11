@@ -432,14 +432,37 @@
                     <div class="collapse {% if 'pcp' in request.path %}show{% endif %}" id="menuPCP" data-bs-parent="#sidebarMenu">
                         <ul class="nav flex-column ms-3 ps-2 border-start border-secondary mb-2 mt-1">
                             <li class="nav-item">
-                                <a href="{% url 'dashboard_pcp' %}" class="nav-link submenu-link {% if 'dashboard' in request.path %}active-sub{% endif %}">
-                                    <i class="bi bi-speedometer2 me-2"></i> Dashboard Ativos
+                                <a class="nav-link submenu-link {% if 'pcp' not in request.path %}collapsed{% endif %} d-flex justify-content-between align-items-center"
+                                   data-bs-toggle="collapse" href="#menuGestaoAtivos" role="button"
+                                   aria-expanded="{% if 'pcp' in request.path %}true{% else %}false{% endif %}"
+                                   aria-controls="menuGestaoAtivos">
+                                    <span><i class="bi bi-gear-wide-connected me-2"></i>Gestão de Ativos</span>
+                                    <i class="bi bi-chevron-down transition-icon"></i>
                                 </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="{% url 'pcp_listar_ativos' %}" class="nav-link submenu-link {% if '/pcp/ativos/' in request.path %}active-sub{% endif %}">
-                                    <i class="bi bi-gear-wide-connected me-2"></i> Cadastro de Ativos
-                                </a>
+                                <div class="collapse {% if 'pcp' in request.path %}show{% endif %}" id="menuGestaoAtivos">
+                                    <ul class="nav flex-column ms-3 ps-2 border-start border-secondary mt-1">
+                                        <li class="nav-item">
+                                            <a href="{% url 'dashboard_pcp' %}" class="nav-link submenu-link {% if '/pcp/dashboard/' in request.path %}active-sub{% endif %}">
+                                                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{% url 'pcp_listar_ativos' %}" class="nav-link submenu-link {% if '/pcp/ativos/' in request.path or '/pcp/planos/' in request.path or '/pcp/manutencoes/' in request.path or '/pcp/evidencias/' in request.path or '/pcp/paradas/' in request.path %}active-sub{% endif %}">
+                                                <i class="bi bi-tools me-2"></i>Ativos
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{% url 'pcp_agenda' %}" class="nav-link submenu-link {% if '/pcp/agenda/' in request.path %}active-sub{% endif %}">
+                                                <i class="bi bi-calendar3 me-2"></i>Agenda
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{% url 'pcp_historico' %}" class="nav-link submenu-link {% if '/pcp/historico/' in request.path %}active-sub{% endif %}">
+                                                <i class="bi bi-clock-history me-2"></i>Histórico
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
                             </li>
                         </ul>
                     </div>

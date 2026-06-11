@@ -155,6 +155,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 PCP_PRIVATE_MEDIA_ROOT = Path(os.getenv('PCP_PRIVATE_MEDIA_ROOT', str(BASE_DIR / 'private_media' / 'pcp')))
 PCP_MAX_EVIDENCE_FILES = int(os.getenv('PCP_MAX_EVIDENCE_FILES', '10'))
 PCP_MAX_EVIDENCE_SIZE = int(os.getenv('PCP_MAX_EVIDENCE_SIZE', str(10 * 1024 * 1024)))
+PCP_DEFAULT_AREA_CODE = os.getenv('PCP_DEFAULT_AREA_CODE', 'FABRICA-UNICA').strip().upper()
+PCP_DEFAULT_AREA_NAME = os.getenv('PCP_DEFAULT_AREA_NAME', 'Fábrica Única').strip()
 PCP_MAINTENANCE_ALERT_RECIPIENTS = [
     item.strip().lower()
     for item in os.getenv('PCP_MAINTENANCE_ALERT_RECIPIENTS', '').replace(';', ',').split(',')

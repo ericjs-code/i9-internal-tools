@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 
 from pcp.models import (
@@ -32,11 +33,38 @@ class AtivoService:
             raise PcpConflictError("Já existe uma área com este código.") from exc
 
     @staticmethod
+    def atualizar_area(*, area: PcpAreaProducao, codigo: str, nome: str, descricao: str = "") -> PcpAreaProducao:
+        codigo_normalizado = codigo.strip().upper()
+        nome_normalizado = nome.strip()
+        if not codigo_normalizado or not nome_normalizado:
+            raise PcpValidationError("Código e nome da área são obrigatórios.")
+
+        try:
+            with transaction.atomic():
+                area = PcpAreaProducao.objects.select_for_update().get(pk=area.pk)
+                area.codigo = codigo_normalizado
+                area.nome = nome_normalizado
+                area.descricao = descricao.strip()
+                area.save(update_fields=["codigo", "nome", "descricao", "updated_at"])
+                return area
+        except IntegrityError as exc:
+            raise PcpConflictError("Já existe uma área com este código.") from exc
+
+    @staticmethod
+    def desativar_area(*, area: PcpAreaProducao) -> PcpAreaProducao:
+        with transaction.atomic():
+            area = PcpAreaProducao.objects.select_for_update().get(pk=area.pk)
+            if PcpAtivo.objects.filter(area=area).exists():
+                raise PcpConflictError("Área possui ativos vinculados e não pode ser desativada.")
+            area.ativo = False
+            area.save(update_fields=["ativo", "updated_at"])
+            return area
+
+    @staticmethod
     def criar_ativo(
         *,
         codigo: str,
         nome: str,
-        area: PcpAreaProducao,
         descricao: str = "",
         fabricante: str = "",
         modelo: str = "",
@@ -50,7 +78,7 @@ class AtivoService:
             raise PcpValidationError("Código e nome do ativo são obrigatórios.")
         try:
             with transaction.atomic():
-                area = PcpAreaProducao.objects.select_for_update().get(pk=area.pk)
+                area = AtivoService._obter_area_padrao()
                 return PcpAtivo.objects.create(
                     codigo=codigo_normalizado,
                     nome=nome_normalizado,
@@ -62,8 +90,6 @@ class AtivoService:
                     status=status,
                     criticidade=criticidade,
                 )
-        except PcpAreaProducao.DoesNotExist as exc:
-            raise PcpValidationError("Não é permitido vincular um ativo a uma área inativa.") from exc
         except IntegrityError as exc:
             raise PcpConflictError("Já existe um ativo com este código.") from exc
 
@@ -87,7 +113,6 @@ class AtivoService:
         ativo: PcpAtivo,
         codigo: str,
         nome: str,
-        area: PcpAreaProducao,
         descricao: str = "",
         fabricante: str = "",
         modelo: str = "",
@@ -102,10 +127,8 @@ class AtivoService:
         try:
             with transaction.atomic():
                 ativo = PcpAtivo.objects.select_for_update().get(pk=ativo.pk)
-                area = PcpAreaProducao.objects.select_for_update().get(pk=area.pk)
                 ativo.codigo = codigo_normalizado
                 ativo.nome = nome_normalizado
-                ativo.area = area
                 ativo.descricao = descricao.strip()
                 ativo.fabricante = fabricante.strip()
                 ativo.modelo = modelo.strip()
@@ -115,7 +138,6 @@ class AtivoService:
                     update_fields=[
                         "codigo",
                         "nome",
-                        "area",
                         "descricao",
                         "fabricante",
                         "modelo",
@@ -125,7 +147,22 @@ class AtivoService:
                     ]
                 )
                 return ativo
-        except PcpAreaProducao.DoesNotExist as exc:
-            raise PcpValidationError("Não é permitido vincular um ativo a uma área inativa.") from exc
         except IntegrityError as exc:
             raise PcpConflictError("Já existe um ativo com este código.") from exc
+
+    @staticmethod
+    def _obter_area_padrao() -> PcpAreaProducao:
+        area, _ = PcpAreaProducao.all_objects.select_for_update().get_or_create(
+            codigo=settings.PCP_DEFAULT_AREA_CODE,
+            defaults={"nome": settings.PCP_DEFAULT_AREA_NAME},
+        )
+        campos_atualizados: list[str] = []
+        if area.nome != settings.PCP_DEFAULT_AREA_NAME:
+            area.nome = settings.PCP_DEFAULT_AREA_NAME
+            campos_atualizados.append("nome")
+        if not area.ativo:
+            area.ativo = True
+            campos_atualizados.append("ativo")
+        if campos_atualizados:
+            area.save(update_fields=[*campos_atualizados, "updated_at"])
+        return area

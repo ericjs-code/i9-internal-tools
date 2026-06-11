@@ -4,9 +4,21 @@
 
 {% block content %}
 <div class="container py-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold mb-0" style="color: var(--azul-principal);">{{ titulo }}</h3>
-        <a href="{% if execucao %}{% url 'pcp_detalhar_execucao' execucao.id %}{% else %}{% url 'pcp_detalhar_ativo' ativo.id %}{% endif %}" class="btn btn-outline-secondary">Voltar</a>
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-4 gap-3">
+        <div>
+            <div class="text-muted small text-uppercase fw-semibold">Execução de manutenção</div>
+            <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">{{ titulo }}</h3>
+            <p class="text-muted mb-0">
+                {% if execucao %}
+                    Documente o diagnóstico, os serviços executados e o resultado antes da conclusão.
+                {% else %}
+                    Vincule a programação quando aplicável e registre o início da intervenção.
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% if execucao %}{% url 'pcp_detalhar_execucao' execucao.id %}{% else %}{% url 'pcp_detalhar_ativo' ativo.id %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Voltar
+        </a>
     </div>
     <form method="post" class="card border-0 shadow-sm rounded-4">
         {% csrf_token %}
@@ -17,13 +29,17 @@
                 <div class="col-12">
                     <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
                     {{ field }}
+                    {% if field.name == 'programacao' %}<div class="form-text">Selecione a programação para atualizar corretamente a agenda após a conclusão.</div>{% endif %}
                     {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                 </div>
                 {% endfor %}
             </div>
         </div>
-        <div class="card-footer bg-white border-0 p-4 pt-0 text-end">
-            <button type="submit" class="btn btn-primary px-4">Confirmar</button>
+        <div class="card-footer bg-white border-0 p-4 pt-0 d-flex flex-column-reverse flex-sm-row justify-content-end gap-2">
+            <a href="{% if execucao %}{% url 'pcp_detalhar_execucao' execucao.id %}{% else %}{% url 'pcp_detalhar_ativo' ativo.id %}{% endif %}" class="btn btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn {% if execucao %}btn-success{% else %}btn-primary{% endif %} px-4">
+                {% if execucao %}<i class="bi bi-check-circle me-1"></i>Concluir manutenção{% else %}<i class="bi bi-play-fill me-1"></i>Iniciar manutenção{% endif %}
+            </button>
         </div>
     </form>
 </div>

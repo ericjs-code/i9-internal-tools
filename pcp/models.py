@@ -291,6 +291,7 @@ class PcpPlanoManutencao(SoftDeleteModel):
     nome = models.CharField(max_length=150, db_index=True, verbose_name="Nome")
     descricao = models.TextField(blank=True, verbose_name="Descrição")
     intervalo_dias = models.PositiveIntegerField(null=True, blank=True, verbose_name="Intervalo em dias")
+    data_inicio = models.DateField(db_index=True, verbose_name="Data de início")
 
     class Meta:
         verbose_name = "Plano de Manutenção"

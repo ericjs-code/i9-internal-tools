@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ titulo }} | PCP{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-4 gap-3">
+        <div>
+            <div class="text-muted small text-uppercase fw-semibold">{{ ativo.codigo }} - {{ ativo.nome }}</div>
+            <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">{{ titulo }}</h3>
+            <p class="text-muted mb-0">Defina quando a rotina começa e com qual frequência deve ser executada.</p>
+        </div>
+        <a href="{% url 'pcp_detalhar_ativo' ativo.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Voltar ao ativo
+        </a>
+    </div>
+
+    <div class="alert alert-primary border-0 shadow-sm rounded-4 mb-4">
+        <div class="d-flex gap-3 align-items-start">
+            <i class="bi bi-calendar2-check-fill fs-4"></i>
+            <div>
+                <div class="fw-bold">Como a programação será gerada</div>
+                <div>A primeira manutenção será criada para a data de início. Após cada conclusão, a próxima data será calculada usando o intervalo informado.</div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" class="card border-0 shadow-sm rounded-4">
+        {% csrf_token %}
+        <div class="card-body p-4">
+            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+            <div class="row g-3">
+                {% for field in form %}
+                <div class="{% if field.name == 'descricao' %}col-12{% elif field.name == 'nome' %}col-lg-8{% else %}col-md-6 col-lg-4{% endif %}">
+                    <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.name == 'data_inicio' %}
+                        <div class="form-text">Data da primeira manutenção programada.</div>
+                    {% elif field.name == 'intervalo_dias' %}
+                        <div class="form-text">Quantidade de dias entre as manutenções.</div>
+                    {% endif %}
+                    {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="card-footer bg-white border-0 p-4 pt-0 d-flex flex-column-reverse flex-sm-row justify-content-end gap-2">
+            <a href="{% url 'pcp_detalhar_ativo' ativo.id %}" class="btn btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary px-4">
+                <i class="bi bi-check-lg me-1"></i>Salvar plano
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
