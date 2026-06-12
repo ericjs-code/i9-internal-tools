@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -11,6 +12,7 @@ from django.db import transaction
 from PIL import Image, UnidentifiedImageError
 
 from pcp.models import (
+    FinalidadeEvidencia,
     PcpEvidenciaManutencao,
     PcpExecucaoManutencao,
     TipoEventoAuditoria,
@@ -31,36 +33,72 @@ class EvidenciaManutencaoService:
         arquivo: UploadedFile,
         usuario: AbstractBaseUser | None,
         descricao: str = "",
+        finalidade: str = FinalidadeEvidencia.SOLUCAO_DOCUMENTACAO,
     ) -> PcpEvidenciaManutencao:
-        with transaction.atomic():
-            execucao = PcpExecucaoManutencao.objects.select_for_update().get(pk=execucao.pk)
-            quantidade = PcpEvidenciaManutencao.objects.filter(execucao=execucao).count()
-            if quantidade >= settings.PCP_MAX_EVIDENCE_FILES:
-                raise PcpConflictError("Limite de evidências por manutenção atingido.")
+        evidencias = EvidenciaManutencaoService.adicionar_multiplas(
+            execucao=execucao,
+            arquivos=((arquivo, descricao, finalidade),),
+            usuario=usuario,
+        )
+        return evidencias[0]
 
+    @staticmethod
+    def adicionar_multiplas(
+        *,
+        execucao: PcpExecucaoManutencao,
+        arquivos: Sequence[tuple[UploadedFile, str, str]],
+        usuario: AbstractBaseUser | None,
+    ) -> list[PcpEvidenciaManutencao]:
+        if not arquivos:
+            raise PcpValidationError("Informe ao menos uma evidência.")
+
+        finalidades_validas = {valor for valor, _ in FinalidadeEvidencia.choices}
+        arquivos_validados: list[tuple[UploadedFile, str, str, dict[str, str]]] = []
+        for arquivo, descricao, finalidade in arquivos:
+            if finalidade not in finalidades_validas:
+                raise PcpValidationError("Finalidade da evidência inválida.")
             dados = EvidenciaManutencaoService._validar_e_ler(arquivo=arquivo)
-            evidencia = PcpEvidenciaManutencao.objects.create(
-                execucao=execucao,
-                arquivo=arquivo,
-                tipo=dados["tipo"],
-                nome_original=Path(arquivo.name).name[:255],
-                tipo_mime=dados["tipo_mime"],
-                tamanho_bytes=arquivo.size,
-                sha256=dados["sha256"],
-                descricao=descricao.strip(),
-                enviado_por=usuario,
-            )
-            AuditoriaManutencaoService.registrar(
-                execucao=execucao,
-                tipo_evento=TipoEventoAuditoria.EVIDENCIA_ADICIONADA,
-                usuario=usuario,
-                dados={
-                    "evidencia_id": evidencia.pk,
-                    "nome_original": evidencia.nome_original,
-                    "sha256": evidencia.sha256,
-                },
-            )
-            return evidencia
+            arquivos_validados.append((arquivo, descricao, finalidade, dados))
+
+        evidencias_criadas: list[PcpEvidenciaManutencao] = []
+        try:
+            with transaction.atomic():
+                execucao = PcpExecucaoManutencao.objects.select_for_update().get(pk=execucao.pk)
+                quantidade = PcpEvidenciaManutencao.objects.filter(execucao=execucao).count()
+                if quantidade + len(arquivos_validados) > settings.PCP_MAX_EVIDENCE_FILES:
+                    raise PcpConflictError("Limite de evidências por manutenção atingido.")
+
+                for arquivo, descricao, finalidade, dados in arquivos_validados:
+                    evidencia = PcpEvidenciaManutencao.objects.create(
+                        execucao=execucao,
+                        finalidade=finalidade,
+                        arquivo=arquivo,
+                        tipo=dados["tipo"],
+                        nome_original=Path(arquivo.name).name[:255],
+                        tipo_mime=dados["tipo_mime"],
+                        tamanho_bytes=arquivo.size,
+                        sha256=dados["sha256"],
+                        descricao=descricao.strip(),
+                        enviado_por=usuario,
+                    )
+                    evidencias_criadas.append(evidencia)
+                    AuditoriaManutencaoService.registrar(
+                        execucao=execucao,
+                        tipo_evento=TipoEventoAuditoria.EVIDENCIA_ADICIONADA,
+                        usuario=usuario,
+                        dados={
+                            "evidencia_id": evidencia.pk,
+                            "finalidade": evidencia.finalidade,
+                            "nome_original": evidencia.nome_original,
+                            "sha256": evidencia.sha256,
+                        },
+                    )
+        except Exception:
+            for evidencia in evidencias_criadas:
+                evidencia.arquivo.storage.delete(evidencia.arquivo.name)
+            raise
+
+        return evidencias_criadas
 
     @staticmethod
     def desativar(

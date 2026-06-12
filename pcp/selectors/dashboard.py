@@ -3,18 +3,20 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-from django.db.models import Count, Q, QuerySet, Sum
+from django.db.models import Count, Q, QuerySet
 from django.utils import timezone
 
 from pcp.models import PcpAtivo, PcpDowntime, PcpProgramacaoManutencao, StatusAtivo, StatusManutencao
+from pcp.services.downtime_analytics import DowntimeAnalyticsService
 
 
 class PcpDashboardSelector:
     @staticmethod
-    def get_context(*, dias: int = 30) -> dict[str, Any]:
+    def get_context(*, dias: int = 90) -> dict[str, Any]:
         hoje = timezone.localdate()
-        data_inicio = hoje - timedelta(days=dias)
         data_limite_preventivas = hoje + timedelta(days=dias)
+        fim_periodo = timezone.now()
+        inicio_periodo = fim_periodo - timedelta(days=dias)
 
         ativos = PcpAtivo.objects.all()
         contagens_ativos = ativos.aggregate(
@@ -29,17 +31,11 @@ class PcpDashboardSelector:
             hoje=hoje,
             limite=data_limite_preventivas,
         )
-        downtimes_periodo = PcpDowntime.objects.select_related("ativo_pcp").filter(inicio__date__gte=data_inicio)
-        minutos_parados = int(
-            downtimes_periodo.filter(duracao_minutos__isnull=False).aggregate(total=Sum("duracao_minutos"))["total"]
-            or 0
+        downtime_analytics = DowntimeAnalyticsService.analisar_periodo(
+            inicio=inicio_periodo,
+            fim=fim_periodo,
         )
-        top_downtime = list(
-            downtimes_periodo.filter(duracao_minutos__isnull=False)
-            .values("ativo_pcp__codigo", "ativo_pcp__nome")
-            .annotate(total_minutos=Sum("duracao_minutos"), total_eventos=Count("id"))
-            .order_by("-total_minutos", "ativo_pcp__codigo")[:8]
-        )
+        minutos_parados = downtime_analytics["total"]["minutos"]
 
         return {
             "dias": dias,
@@ -51,7 +47,9 @@ class PcpDashboardSelector:
             "preventivas_atrasadas_count": preventivas_atrasadas.count(),
             "preventivas_proximas_count": preventivas_proximas.count(),
             "minutos_parados": minutos_parados,
-            "horas_paradas": round(minutos_parados / 60, 1),
+            "horas_paradas": downtime_analytics["total"]["horas"],
+            "dias_parados": downtime_analytics["total"]["dias"],
+            "downtime_analytics": downtime_analytics,
             "disponibilidade_estimativa": PcpDashboardSelector._calcular_disponibilidade_estimada(
                 total_ativos=contagens_ativos["total"],
                 dias=dias,
@@ -61,9 +59,13 @@ class PcpDashboardSelector:
             "preventivas_atrasadas": preventivas_atrasadas[:10],
             "preventivas_proximas": preventivas_proximas[:10],
             "ativos_criticos": ativos.filter(criticidade="critica").order_by("codigo", "id")[:10],
-            "top_downtime": top_downtime,
-            "top_downtime_labels": [item["ativo_pcp__codigo"] or "N/A" for item in top_downtime],
-            "top_downtime_data": [int(item["total_minutos"] or 0) for item in top_downtime],
+            "top_downtime": downtime_analytics["ativos"],
+            "top_downtime_labels": [item["nome"] or "Ativo sem nome" for item in downtime_analytics["ativos"]],
+            "top_downtime_data": [item["horas"] for item in downtime_analytics["ativos"]],
+            "downtime_categoria_labels": downtime_analytics["categoria_labels"],
+            "downtime_categoria_data": downtime_analytics["categoria_horas"],
+            "downtime_motivo_labels": downtime_analytics["motivo_labels"],
+            "downtime_motivo_data": downtime_analytics["motivo_horas"],
             "status_labels": ["Operando", "Parado", "Manutenção"],
             "status_data": [
                 contagens_ativos["operando"],

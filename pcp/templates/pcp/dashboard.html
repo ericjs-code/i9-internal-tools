@@ -30,6 +30,8 @@
             <a href="?periodo=7" class="btn btn-sm {% if dias == 7 %}btn-primary{% else %}btn-outline-primary{% endif %}">7 dias</a>
             <a href="?periodo=30" class="btn btn-sm {% if dias == 30 %}btn-primary{% else %}btn-outline-primary{% endif %}">30 dias</a>
             <a href="?periodo=90" class="btn btn-sm {% if dias == 90 %}btn-primary{% else %}btn-outline-primary{% endif %}">90 dias</a>
+            <a href="?periodo=180" class="btn btn-sm {% if dias == 180 %}btn-primary{% else %}btn-outline-primary{% endif %}">180 dias</a>
+            <a href="?periodo=365" class="btn btn-sm {% if dias == 365 %}btn-primary{% else %}btn-outline-primary{% endif %}">365 dias</a>
         </div>
     </div>
 
@@ -76,8 +78,78 @@
                 <div class="card-body p-4">
                     <span class="text-success small fw-bold text-uppercase">Disponibilidade estimada</span>
                     <h2 class="fw-bold mb-0">{{ disponibilidade_estimativa }}%</h2>
-                    <div class="small text-muted mt-3">{{ horas_paradas }}h paradas em {{ dias }} dias</div>
+                    <div class="small text-muted mt-3">{{ downtime_analytics.total.legenda }} de parada em {{ dias }} dias</div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
+        <div class="card-header bg-white border-0 p-4">
+            <h5 class="fw-bold mb-1">Análise de tempo perdido</h5>
+            <div class="small text-muted">Comparativo entre impedimentos de produção e ociosidade no período selecionado.</div>
+        </div>
+        <div class="card-body p-4 pt-0">
+            <div class="row g-3 mb-4">
+                {% for categoria in downtime_analytics.categorias %}
+                <div class="col-md-6">
+                    <div class="card h-100 rounded-4 {% if categoria.codigo == 'tempo_producao_perdido' %}border-danger-subtle bg-danger-subtle{% else %}border-secondary-subtle bg-light{% endif %}">
+                        <div class="card-body p-4">
+                            <div class="small fw-bold text-uppercase {% if categoria.codigo == 'tempo_producao_perdido' %}text-danger-emphasis{% else %}text-secondary{% endif %}">{{ categoria.nome }}</div>
+                            <div class="d-flex align-items-baseline gap-2 mt-2">
+                                <h2 class="fw-bold mb-0">{{ categoria.horas }} h</h2>
+                                <span class="text-muted">{{ categoria.legenda }}</span>
+                            </div>
+                            <div class="small text-muted mt-2">{{ categoria.minutos }} minutos · {{ categoria.dias }} dias</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-xl-5">
+                    <h6 class="fw-bold text-secondary">Produção perdida vs. ociosidade</h6>
+                    <canvas id="graficoCategoriasDowntime" style="max-height: 300px;"></canvas>
+                </div>
+                <div class="col-xl-7">
+                    <h6 class="fw-bold text-secondary">Impacto por motivo</h6>
+                    {% if downtime_analytics.motivos %}
+                        <canvas id="graficoMotivosDowntime" style="max-height: 300px;"></canvas>
+                    {% else %}
+                        <div class="text-center text-muted py-5">Nenhuma parada com duração no período selecionado.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="table-responsive border rounded-4">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="px-4">Motivo</th>
+                            <th>Categoria</th>
+                            <th class="text-end">Minutos</th>
+                            <th class="text-end">Horas</th>
+                            <th class="text-end px-4">Dias</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for motivo in downtime_analytics.motivos %}
+                        <tr {% if motivo.destaque %}class="table-warning"{% endif %}>
+                            <td class="px-4 fw-semibold">
+                                {{ motivo.nome }}
+                                {% if motivo.destaque %}<span class="badge text-bg-warning ms-1">Destaque</span>{% endif %}
+                            </td>
+                            <td>{{ motivo.categoria_nome }}</td>
+                            <td class="text-end">{{ motivo.minutos }}</td>
+                            <td class="text-end">{{ motivo.horas }}</td>
+                            <td class="text-end px-4">{{ motivo.dias }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">Nenhum motivo registrado no período.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -86,7 +158,7 @@
         <div class="col-xl-8">
             <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-header bg-white border-0 pt-3 pb-0">
-                    <h6 class="fw-bold text-secondary mb-0">Máquinas com maior downtime</h6>
+                    <h6 class="fw-bold text-secondary mb-0">Máquinas com maior tempo de parada</h6>
                 </div>
                 <div class="card-body p-4">
                     {% if top_downtime %}
@@ -269,9 +341,23 @@
 {{ status_data|json_script:"pcp-status-data" }}
 {{ top_downtime_labels|json_script:"pcp-downtime-labels" }}
 {{ top_downtime_data|json_script:"pcp-downtime-data" }}
+{{ downtime_categoria_labels|json_script:"pcp-downtime-categoria-labels" }}
+{{ downtime_categoria_data|json_script:"pcp-downtime-categoria-data" }}
+{{ downtime_motivo_labels|json_script:"pcp-downtime-motivo-labels" }}
+{{ downtime_motivo_data|json_script:"pcp-downtime-motivo-data" }}
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const parseData = (id) => JSON.parse(document.getElementById(id).textContent);
+        const formatDuration = (hours) => {
+            const minutes = Math.round(hours * 60);
+            const days = (hours / 24).toFixed(2);
+            return `${hours.toFixed(2)} h · ${minutes} min · ${days} d`;
+        };
+        const durationTooltip = {
+            callbacks: {
+                label: (context) => `${context.label}: ${formatDuration(Number(context.raw))}`
+            }
+        };
         const statusCanvas = document.getElementById("graficoStatus");
         if (statusCanvas) {
             new Chart(statusCanvas, {
@@ -298,7 +384,7 @@
                 data: {
                     labels: parseData("pcp-downtime-labels"),
                     datasets: [{
-                        label: "Minutos parados",
+                        label: "Horas paradas",
                         data: parseData("pcp-downtime-data"),
                         backgroundColor: "#0d6efd",
                         borderRadius: 5
@@ -306,10 +392,51 @@
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { display: false }, tooltip: durationTooltip },
                     scales: {
-                        y: { beginAtZero: true }
+                        y: { beginAtZero: true, title: { display: true, text: "Horas" } }
                     }
+                }
+            });
+        }
+
+        const categoriaCanvas = document.getElementById("graficoCategoriasDowntime");
+        if (categoriaCanvas) {
+            new Chart(categoriaCanvas, {
+                type: "doughnut",
+                data: {
+                    labels: parseData("pcp-downtime-categoria-labels"),
+                    datasets: [{
+                        data: parseData("pcp-downtime-categoria-data"),
+                        backgroundColor: ["#dc3545", "#6c757d"],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: "bottom" }, tooltip: durationTooltip }
+                }
+            });
+        }
+
+        const motivoCanvas = document.getElementById("graficoMotivosDowntime");
+        if (motivoCanvas) {
+            new Chart(motivoCanvas, {
+                type: "bar",
+                data: {
+                    labels: parseData("pcp-downtime-motivo-labels"),
+                    datasets: [{
+                        label: "Horas",
+                        data: parseData("pcp-downtime-motivo-data"),
+                        backgroundColor: "#0d6efd",
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    indexAxis: "y",
+                    responsive: true,
+                    plugins: { legend: { display: false }, tooltip: durationTooltip },
+                    scales: { x: { beginAtZero: true, title: { display: true, text: "Horas" } } }
                 }
             });
         }

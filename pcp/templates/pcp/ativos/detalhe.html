@@ -183,6 +183,7 @@
                 <thead class="bg-light">
                     <tr>
                         <th class="px-4">Início</th>
+                        <th>Data término</th>
                         <th>Tipo</th>
                         <th>Plano</th>
                         <th>Responsável</th>
@@ -194,6 +195,13 @@
                 {% for execucao in ativo.execucoes_manutencao.all %}
                     <tr>
                         <td class="px-4 text-nowrap">{{ execucao.data_inicio|date:"d/m/Y H:i" }}</td>
+                        <td class="text-nowrap">
+                            {% if execucao.data_fim %}
+                                {{ execucao.data_fim|date:"d/m/Y H:i" }}
+                            {% else %}
+                                <span class="text-muted">Em andamento</span>
+                            {% endif %}
+                        </td>
                         <td>{{ execucao.get_tipo_display }}</td>
                         <td>
                             {% if execucao.programacao %}
@@ -217,7 +225,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="6" class="text-center text-muted py-5">Nenhuma manutenção registrada para este ativo.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-5">Nenhuma manutenção registrada para este ativo.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

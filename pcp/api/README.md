@@ -126,6 +126,22 @@ POST /api/pcp/execucoes-manutencao/
 POST /api/pcp/execucoes-manutencao/<execucao_id>/concluir/
 ```
 
+### Downtimes
+
+Tipos aceitos em `POST /api/pcp/downtimes/`:
+
+| `tipo` | Categoria derivada pelo backend |
+| --- | --- |
+| `falta_mao_obra` | `tempo_producao_perdido` |
+| `maquinario_estragou` | `tempo_producao_perdido` |
+| `falta_material` | `tempo_producao_perdido` |
+| `manutencao` | `tempo_producao_perdido` |
+| `falta_desenho` | `tempo_ocioso` |
+
+O campo `categoria` e somente leitura. Respostas de downtime incluem `categoria`,
+`categoria_descricao` e `tipo_descricao`. O endpoint `GET /api/pcp/downtimes/`
+aceita filtro por `categoria` e por `tipo`.
+
 ## Observacoes para consumo analitico
 
 - Para Power BI, use apenas `GET /api/pcp/powerbi/movimentacoes/`.

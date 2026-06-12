@@ -78,8 +78,8 @@ class PcpExecucaoManutencaoAdmin(ReadOnlyOperationalAdminMixin, admin.ModelAdmin
 
 @admin.register(PcpDowntime)
 class PcpDowntimeAdmin(ReadOnlyOperationalAdminMixin, admin.ModelAdmin):
-    list_display = ("ativo_pcp", "tipo", "inicio", "fim", "duracao_minutos", "origem", "ativo")
-    list_filter = ("tipo", "origem", "ativo", "inicio")
+    list_display = ("ativo_pcp", "categoria", "tipo", "inicio", "fim", "duracao_minutos", "origem", "ativo")
+    list_filter = ("categoria", "tipo", "origem", "ativo", "inicio")
     search_fields = ("ativo_pcp__codigo", "ativo_pcp__nome", "motivo")
     autocomplete_fields = ("ativo_pcp", "responsavel")
     date_hierarchy = "inicio"
@@ -113,8 +113,17 @@ class PcpProgramacaoAlertaManutencaoAdmin(ReadOnlyOperationalAdminMixin, admin.M
 
 @admin.register(PcpEvidenciaManutencao)
 class PcpEvidenciaManutencaoAdmin(ReadOnlyOperationalAdminMixin, admin.ModelAdmin):
-    list_display = ("nome_original", "execucao", "tipo", "tamanho_bytes", "enviado_por", "created_at", "ativo")
-    list_filter = ("tipo", "ativo", "created_at")
+    list_display = (
+        "nome_original",
+        "execucao",
+        "finalidade",
+        "tipo",
+        "tamanho_bytes",
+        "enviado_por",
+        "created_at",
+        "ativo",
+    )
+    list_filter = ("finalidade", "tipo", "ativo", "created_at")
     search_fields = ("nome_original", "sha256", "execucao__ativo_pcp__codigo")
     autocomplete_fields = ("execucao", "enviado_por")
 

@@ -52,7 +52,7 @@ class DowntimeFilter(django_filters.FilterSet):
 
     class Meta:
         model = PcpDowntime
-        fields = ["ativo_pcp", "tipo", "aberto", "data_inicio", "data_fim"]
+        fields = ["ativo_pcp", "categoria", "tipo", "aberto", "data_inicio", "data_fim"]
 
 
 class ExecucaoManutencaoFilter(django_filters.FilterSet):

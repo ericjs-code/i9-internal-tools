@@ -8,7 +8,7 @@ on:
 
 jobs:
   quality:
-    name: Validar Django e PCP
+    name: Validar Django
     runs-on: ubuntu-latest
     env:
       SECRET_KEY: ci-secret-key

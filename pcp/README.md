@@ -16,6 +16,8 @@ Views, endpoints e tasks nao devem alterar models diretamente quando existir um 
 
 - Models principais utilizam soft delete por meio do campo `ativo`.
 - Um ativo pode possuir apenas um downtime aberto.
+- Todo downtime possui categoria macro derivada do tipo: tempo de producao perdido ou tempo ocioso.
+- Tipos de downtime novos nao podem definir uma categoria incompativel.
 - Um ativo pode possuir apenas uma execucao de manutencao aberta.
 - Um plano pode possuir apenas uma programacao pendente.
 - Programacoes atrasadas sao identificadas pela data prevista; o atraso nao e persistido como status.

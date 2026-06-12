@@ -47,15 +47,29 @@
             <form method="post" enctype="multipart/form-data" action="{% url 'pcp_adicionar_evidencia' execucao.id %}" class="card border-0 shadow-sm rounded-4 h-100">
                 {% csrf_token %}
                 <div class="card-body p-4">
-                    <h5 class="fw-bold mb-3">Adicionar evidência</h5>
-                    {% for field in evidencia_form %}
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">{{ field.label }}</label>
-                        {{ field }}
+                    <h5 class="fw-bold mb-1">Adicionar evidências</h5>
+                    <p class="small text-muted mb-3">Documente separadamente o estado encontrado e a solução executada.</p>
+
+                    <div class="border rounded-3 p-3 mb-3">
+                        <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1 text-warning"></i>Evidência do problema</div>
+                        <div class="small text-muted mb-3">Fotos, logs ou arquivos que demonstrem a condição antes da manutenção.</div>
+                        <label class="form-label" for="{{ evidencia_form.evidencia_problema.id_for_label }}">Arquivo</label>
+                        {{ evidencia_form.evidencia_problema }}
+                        <label class="form-label mt-3" for="{{ evidencia_form.descricao_problema.id_for_label }}">Descrição</label>
+                        {{ evidencia_form.descricao_problema }}
                     </div>
-                    {% endfor %}
-                    <button class="btn btn-primary"><i class="bi bi-paperclip me-1"></i>Anexar evidência</button>
-                    <div class="small text-muted mt-2">PDF, JPEG, PNG ou WebP.</div>
+
+                    <div class="border rounded-3 p-3 mb-3">
+                        <div class="fw-semibold mb-1"><i class="bi bi-check2-circle me-1 text-success"></i>Evidência da solução / documentação</div>
+                        <div class="small text-muted mb-3">Fotos da solução, checklists, laudos ou documentação técnica.</div>
+                        <label class="form-label" for="{{ evidencia_form.evidencia_solucao.id_for_label }}">Arquivo</label>
+                        {{ evidencia_form.evidencia_solucao }}
+                        <label class="form-label mt-3" for="{{ evidencia_form.descricao_solucao.id_for_label }}">Descrição</label>
+                        {{ evidencia_form.descricao_solucao }}
+                    </div>
+
+                    <button class="btn btn-primary"><i class="bi bi-paperclip me-1"></i>Anexar arquivos</button>
+                    <div class="small text-muted mt-2">Envie ao menos um arquivo. Formatos permitidos: PDF, JPEG, PNG ou WebP.</div>
                 </div>
             </form>
         </div>
@@ -69,7 +83,13 @@
                     <div class="small text-muted">Arquivos anexados permanecem preservados mesmo quando desativados.</div>
                 </div>
                 <div class="list-group list-group-flush">
-                    {% for evidencia in execucao.evidencias.all %}
+                    {% regroup execucao.evidencias.all by finalidade as evidencias_por_finalidade %}
+                    {% for grupo in evidencias_por_finalidade %}
+                    <div class="list-group-item bg-light px-4 py-2 fw-semibold">
+                        {{ grupo.list.0.get_finalidade_display }}
+                        <span class="badge rounded-pill text-bg-secondary ms-1">{{ grupo.list|length }}</span>
+                    </div>
+                    {% for evidencia in grupo.list %}
                     <div class="list-group-item px-4 py-3">
                         <div class="d-flex flex-column flex-xl-row justify-content-between gap-3">
                             <div>
@@ -88,6 +108,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endfor %}
                     {% empty %}
                     <div class="text-center text-muted py-4">Nenhuma evidência anexada.</div>
                     {% endfor %}

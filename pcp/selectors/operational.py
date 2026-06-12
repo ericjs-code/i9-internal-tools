@@ -60,7 +60,7 @@ def programacoes_manutencao() -> QuerySet[PcpProgramacaoManutencao]:
 def agenda_manutencao(
     *,
     hoje: date,
-    periodo: str = "30",
+    periodo: str = "90",
 ) -> QuerySet[PcpProgramacaoManutencao]:
     queryset = PcpProgramacaoManutencao.objects.select_related(
         "plano",
@@ -72,7 +72,7 @@ def agenda_manutencao(
     if periodo == "hoje":
         return queryset.filter(data_prevista=hoje).order_by("plano__ativo_pcp__codigo")
 
-    dias = int(periodo) if periodo in {"7", "15", "30"} else 30
+    dias = int(periodo) if periodo in {"7", "15", "30", "90", "180", "365"} else 90
     limite = hoje + timedelta(days=dias)
     return queryset.filter(data_prevista__gte=hoje, data_prevista__lte=limite).order_by(
         "data_prevista",
@@ -109,7 +109,9 @@ def historico_manutencoes() -> QuerySet[PcpExecucaoManutencao]:
 
 
 def execucao_detalhada(*, execucao_id: int) -> PcpExecucaoManutencao:
-    evidencias = PcpEvidenciaManutencao.objects.select_related("enviado_por").order_by("created_at", "id")
+    evidencias = PcpEvidenciaManutencao.objects.select_related("enviado_por").order_by(
+        "finalidade", "created_at", "id"
+    )
     eventos = PcpEventoAuditoriaManutencao.objects.select_related("usuario").order_by("-criado_em", "-id")
     return (
         PcpExecucaoManutencao.objects.select_related(

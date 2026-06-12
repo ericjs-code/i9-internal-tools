@@ -43,6 +43,29 @@
     </div>
     {% endif %}
 
+    {% if not downtime %}
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card border-danger-subtle bg-danger-subtle rounded-4 h-100">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold text-danger-emphasis mb-2">Tempo de Produção (Perdido)</h6>
+                    <p class="small text-danger-emphasis mb-2">A máquina possui demanda, mas está impedida de operar.</p>
+                    <div class="small text-danger-emphasis">Falta de mão de obra, maquinário estragou, falta de material ou manutenção.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-secondary-subtle bg-light rounded-4 h-100">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-2">Tempo Ocioso</h6>
+                    <p class="small text-muted mb-2">A máquina está disponível para operar, mas não possui demanda liberada.</p>
+                    <div class="small text-muted">Falta de desenho.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <form method="post" class="card border-0 shadow-sm rounded-4">
         {% csrf_token %}
         <div class="card-body p-4">

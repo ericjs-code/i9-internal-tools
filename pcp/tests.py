@@ -8,12 +8,15 @@ from django.contrib.auth.models import Group
 from django.contrib.auth.models import Permission
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError, transaction
-from django.test import TestCase, override_settings
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from pcp.models import (
+    CategoriaDowntime,
+    FinalidadeEvidencia,
     MovimentacaoEstoquePCP,
     OrigemMovimentacao,
     PcpAlertaEnviado,
@@ -29,6 +32,7 @@ from pcp.models import (
     StatusAlerta,
     StatusAtivo,
     StatusManutencao,
+    TipoDowntime,
     TipoManutencao,
     TipoMovimentacao,
 )
@@ -36,6 +40,7 @@ from pcp.services import (
     AlertaManutencaoService,
     AtivoService,
     DowntimeService,
+    DowntimeAnalyticsService,
     EvidenciaManutencaoService,
     PCPEstoqueETLService,
     PlanoManutencaoService,
@@ -132,7 +137,57 @@ class PcpMaintenanceServicesTests(TestCase):
         self.ativo.refresh_from_db()
 
         self.assertEqual(fechado.duracao_minutos, 91)
+        self.assertEqual(fechado.categoria, CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO)
+        self.assertEqual(fechado.tipo, TipoDowntime.MAQUINARIO_ESTRAGOU)
         self.assertEqual(self.ativo.status, StatusAtivo.OPERANDO)
+
+    def test_downtime_deriva_tempo_ocioso_por_falta_de_desenho(self) -> None:
+        downtime = DowntimeService.abrir_downtime(
+            ativo_pcp=self.ativo,
+            tipo=TipoDowntime.FALTA_DESENHO,
+            motivo="Projeto ainda não liberado.",
+        )
+
+        self.assertEqual(downtime.categoria, CategoriaDowntime.TEMPO_OCIOSO)
+
+    def test_downtime_rejeita_tipo_legado_em_novo_registro(self) -> None:
+        with self.assertRaisesMessage(PcpValidationError, "Tipo de parada inválido."):
+            DowntimeService.abrir_downtime(
+                ativo_pcp=self.ativo,
+                tipo="nao_planejado",
+                motivo="Tipo legado",
+            )
+
+    def test_analytics_recorta_periodo_e_inclui_parada_aberta(self) -> None:
+        fim_periodo = timezone.now().replace(microsecond=0)
+        inicio_periodo = fim_periodo - timedelta(days=1)
+        outro_ativo = PcpAtivo.objects.create(codigo="MAQ-002", nome="Torno", area=self.area)
+        PcpDowntime.objects.create(
+            ativo_pcp=self.ativo,
+            categoria=CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO,
+            tipo=TipoDowntime.FALTA_MAO_OBRA,
+            inicio=inicio_periodo - timedelta(hours=1),
+            fim=inicio_periodo + timedelta(hours=2),
+            duracao_minutos=180,
+            motivo="Operador ausente",
+        )
+        PcpDowntime.objects.create(
+            ativo_pcp=outro_ativo,
+            categoria=CategoriaDowntime.TEMPO_OCIOSO,
+            tipo=TipoDowntime.FALTA_DESENHO,
+            inicio=fim_periodo - timedelta(hours=1),
+            motivo="Desenho não liberado",
+        )
+
+        analytics = DowntimeAnalyticsService.analisar_periodo(inicio=inicio_periodo, fim=fim_periodo)
+
+        categorias = {item["codigo"]: item for item in analytics["categorias"]}
+        motivos = {item["tipo"]: item for item in analytics["motivos"]}
+        self.assertEqual(analytics["total"]["minutos"], 180)
+        self.assertEqual(categorias[CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO]["minutos"], 120)
+        self.assertEqual(categorias[CategoriaDowntime.TEMPO_OCIOSO]["minutos"], 60)
+        self.assertTrue(motivos[TipoDowntime.FALTA_MAO_OBRA]["destaque"])
+        self.assertTrue(motivos[TipoDowntime.FALTA_DESENHO]["destaque"])
 
     def test_soft_delete_remove_do_manager_padrao_sem_excluir_registro(self) -> None:
         ativo_id = self.ativo.id
@@ -218,8 +273,10 @@ class PcpMaintenanceServicesTests(TestCase):
         )
 
         self.assertEqual(evidencia.tipo, "pdf")
+        self.assertEqual(evidencia.finalidade, FinalidadeEvidencia.SOLUCAO_DOCUMENTACAO)
         self.assertEqual(len(evidencia.sha256), 64)
-        self.assertTrue(execucao.eventos_auditoria.filter(tipo_evento="evidencia_adicionada").exists())
+        evento = execucao.eventos_auditoria.get(tipo_evento="evidencia_adicionada")
+        self.assertEqual(evento.dados["finalidade"], FinalidadeEvidencia.SOLUCAO_DOCUMENTACAO)
         EvidenciaManutencaoService.desativar(
             evidencia=evidencia,
             usuario=None,
@@ -383,6 +440,9 @@ class PcpOperationalApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["categoria"], CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO)
+        self.assertEqual(response.data["tipo"], TipoDowntime.MAQUINARIO_ESTRAGOU)
+        self.assertEqual(response.data["categoria_descricao"], "Tempo de Produção (Perdido)")
         downtime_id = response.data["id"]
         response = self.client.post(
             f"/api/pcp/downtimes/{downtime_id}/fechar/",
@@ -392,6 +452,27 @@ class PcpOperationalApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["duracao_minutos"], 45)
+
+    def test_api_filtra_downtime_por_categoria(self) -> None:
+        DowntimeService.abrir_downtime(
+            ativo_pcp=self.ativo,
+            tipo=TipoDowntime.FALTA_DESENHO,
+            motivo="Desenho pendente",
+            responsavel=self.user,
+        )
+
+        ociosos = self.client.get(
+            "/api/pcp/downtimes/",
+            {"categoria": CategoriaDowntime.TEMPO_OCIOSO},
+        )
+        producao = self.client.get(
+            "/api/pcp/downtimes/",
+            {"categoria": CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO},
+        )
+
+        self.assertEqual(ociosos.status_code, 200)
+        self.assertEqual(ociosos.data["count"], 1)
+        self.assertEqual(producao.data["count"], 0)
 
     def test_api_inicia_e_conclui_execucao_de_manutencao(self) -> None:
         plano = PcpPlanoManutencao.objects.create(
@@ -471,7 +552,114 @@ class PcpDashboardViewTests(TestCase):
         self.assertTemplateUsed(response, "pcp/dashboard.html")
         self.assertContains(response, "Gestão de Ativos")
         self.assertContains(response, "Visão operacional de disponibilidade, paradas e manutenções programadas.")
+        self.assertContains(response, "Análise de tempo perdido")
+        self.assertContains(response, "Tempo de Produção (Perdido)")
+        self.assertContains(response, "Tempo Ocioso")
         self.assertNotContains(response, "GestÃ")
+
+
+    def test_dashboard_usa_90_dias_por_padrao_e_nome_do_ativo_no_grafico(self) -> None:
+        area = PcpAreaProducao.objects.create(codigo="AREA-GRAFICO", nome="Área do gráfico")
+        ativo = PcpAtivo.objects.create(codigo="MAQ-GRAFICO", nome="Prensa Hidráulica", area=area)
+        fim = timezone.now() - timedelta(hours=1)
+        PcpDowntime.objects.create(
+            ativo_pcp=ativo,
+            categoria=CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO,
+            tipo=TipoDowntime.MAQUINARIO_ESTRAGOU,
+            inicio=fim - timedelta(hours=2),
+            fim=fim,
+            duracao_minutos=120,
+            motivo="Falha mecânica",
+        )
+
+        response = self.client.get("/pcp/dashboard/")
+
+        self.assertEqual(response.context["dias"], 90)
+        self.assertEqual(response.context["top_downtime_labels"], ["Prensa Hidráulica"])
+        self.assertContains(response, "180 dias")
+        self.assertContains(response, "365 dias")
+
+    def test_dashboard_aceita_periodos_de_180_e_365_dias(self) -> None:
+        for periodo in (180, 365):
+            with self.subTest(periodo=periodo):
+                response = self.client.get("/pcp/dashboard/", {"periodo": periodo})
+                self.assertEqual(response.context["dias"], periodo)
+
+
+class PcpDowntimeCategoriaMigrationTests(TransactionTestCase):
+    migrate_from = ("pcp", "0010_pcpplanomanutencao_data_inicio")
+    migrate_to = ("pcp", "0011_pcpdowntime_categoria")
+
+    def setUp(self) -> None:
+        super().setUp()
+        executor = MigrationExecutor(connection)
+        executor.migrate([self.migrate_from])
+        apps = executor.loader.project_state([self.migrate_from]).apps
+        area_model = apps.get_model("pcp", "PcpAreaProducao")
+        ativo_model = apps.get_model("pcp", "PcpAtivo")
+        downtime_model = apps.get_model("pcp", "PcpDowntime")
+        area = area_model.objects.create(codigo="LEGADO", nome="Área Legada")
+        ativo = ativo_model.objects.create(codigo="MAQ-LEGADA", nome="Máquina Legada", area=area)
+        self.downtime_id = downtime_model.objects.create(
+            ativo_pcp=ativo,
+            tipo="nao_planejado",
+            inicio=timezone.now() - timedelta(hours=2),
+            fim=timezone.now() - timedelta(hours=1),
+            duracao_minutos=60,
+            motivo="Registro anterior à categorização",
+        ).pk
+
+        executor = MigrationExecutor(connection)
+        executor.migrate([self.migrate_to])
+        self.apps = executor.loader.project_state([self.migrate_to]).apps
+
+    def test_migration_classifica_registro_legado_sem_alterar_tipo(self) -> None:
+        downtime_model = self.apps.get_model("pcp", "PcpDowntime")
+        downtime = downtime_model._base_manager.get(pk=self.downtime_id)
+
+        self.assertEqual(downtime.categoria, CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO)
+        self.assertEqual(downtime.tipo, "nao_planejado")
+
+
+class PcpEvidenciaFinalidadeMigrationTests(TransactionTestCase):
+    migrate_from = ("pcp", "0011_pcpdowntime_categoria")
+    migrate_to = ("pcp", "0012_pcpevidenciamanutencao_finalidade")
+
+    def setUp(self) -> None:
+        super().setUp()
+        executor = MigrationExecutor(connection)
+        executor.migrate([self.migrate_from])
+        apps = executor.loader.project_state([self.migrate_from]).apps
+        area_model = apps.get_model("pcp", "PcpAreaProducao")
+        ativo_model = apps.get_model("pcp", "PcpAtivo")
+        execucao_model = apps.get_model("pcp", "PcpExecucaoManutencao")
+        evidencia_model = apps.get_model("pcp", "PcpEvidenciaManutencao")
+        area = area_model.objects.create(codigo="AREA-EVID-LEGADA", nome="Área legada")
+        ativo = ativo_model.objects.create(codigo="MAQ-EVID-LEGADA", nome="Máquina legada", area=area)
+        execucao = execucao_model.objects.create(
+            ativo_pcp=ativo,
+            tipo=TipoManutencao.CORRETIVA,
+            data_inicio=timezone.now(),
+        )
+        self.evidencia_id = evidencia_model.objects.create(
+            execucao=execucao,
+            arquivo="manutencoes/legado/laudo.pdf",
+            tipo="pdf",
+            nome_original="laudo.pdf",
+            tipo_mime="application/pdf",
+            tamanho_bytes=10,
+            sha256="a" * 64,
+        ).pk
+
+        executor = MigrationExecutor(connection)
+        executor.migrate([self.migrate_to])
+        self.apps = executor.loader.project_state([self.migrate_to]).apps
+
+    def test_migration_classifica_evidencia_legada_como_solucao(self) -> None:
+        evidencia_model = self.apps.get_model("pcp", "PcpEvidenciaManutencao")
+        evidencia = evidencia_model._base_manager.get(pk=self.evidencia_id)
+
+        self.assertEqual(evidencia.finalidade, FinalidadeEvidencia.SOLUCAO_DOCUMENTACAO)
 
 
 @override_settings(PCP_DEFAULT_AREA_CODE="FABRICA-UNICA", PCP_DEFAULT_AREA_NAME="Fábrica Única")
@@ -595,13 +783,69 @@ class PcpAssetViewsTests(TestCase):
         self.assertContains(response, plano.nome)
         self.assertContains(response, data_programada.strftime("%d/%m/%Y"))
 
+    def test_agenda_usa_90_dias_por_padrao_e_aceita_periodos_maiores(self) -> None:
+        ativo = AtivoService.criar_ativo(codigo="MAQ-AGENDA-LONGA", nome="Máquina Agenda Longa")
+        data_programada = timezone.localdate() + timedelta(days=80)
+        plano = PlanoManutencaoService.criar_plano(
+            ativo_pcp=ativo,
+            nome="Preventiva futura",
+            data_inicio=data_programada,
+            tipo=TipoManutencao.PREVENTIVA,
+            intervalo_dias=30,
+        )
+        ProgramacaoManutencaoService.gerar_proxima_preventiva(plano=plano)
+
+        response = self.client.get("/pcp/agenda/")
+
+        self.assertEqual(response.context["periodo"], "90")
+        self.assertContains(response, ativo.codigo)
+        self.assertContains(response, "Próximos 180 dias")
+        self.assertContains(response, "Próximos 365 dias")
+
+    def test_historico_pagina_dez_registros_e_exibe_datas(self) -> None:
+        ativo = AtivoService.criar_ativo(codigo="MAQ-HIST-PAG", nome="Máquina Histórico Paginado")
+        agora = timezone.now()
+        for indice in range(11):
+            inicio = agora - timedelta(days=indice + 1, hours=2)
+            PcpExecucaoManutencao.objects.create(
+                ativo_pcp=ativo,
+                tipo=TipoManutencao.CORRETIVA,
+                data_inicio=inicio,
+                data_fim=inicio + timedelta(hours=1),
+            )
+
+        primeira_pagina = self.client.get("/pcp/historico/")
+        segunda_pagina = self.client.get("/pcp/historico/", {"page": 2})
+
+        self.assertEqual(len(primeira_pagina.context["execucoes"]), 10)
+        self.assertEqual(len(segunda_pagina.context["execucoes"]), 1)
+        self.assertContains(primeira_pagina, "Data início")
+        self.assertContains(primeira_pagina, "Data término")
+        self.assertContains(primeira_pagina, "Página 1 de 2")
+
+    def test_detalhe_ativo_exibe_data_termino_da_execucao(self) -> None:
+        ativo = AtivoService.criar_ativo(codigo="MAQ-FIM", nome="Máquina com Término")
+        inicio = timezone.now() - timedelta(hours=2)
+        termino = inicio + timedelta(hours=1)
+        PcpExecucaoManutencao.objects.create(
+            ativo_pcp=ativo,
+            tipo=TipoManutencao.CORRETIVA,
+            data_inicio=inicio,
+            data_fim=termino,
+        )
+
+        response = self.client.get(f"/pcp/ativos/{ativo.pk}/")
+
+        self.assertContains(response, "Data término")
+        self.assertContains(response, timezone.localtime(termino).strftime("%d/%m/%Y %H:%M"))
+
     def test_fluxo_visual_abre_e_fecha_parada_atualizando_status(self) -> None:
         ativo = AtivoService.criar_ativo(codigo="MAQ-PARADA", nome="Máquina Parada")
 
         abertura = self.client.post(
             f"/pcp/ativos/{ativo.pk}/paradas/nova/",
             {
-                "tipo": "nao_planejado",
+                "tipo": TipoDowntime.MAQUINARIO_ESTRAGOU,
                 "inicio": "",
                 "motivo": "Falha no acionamento",
                 "observacao": "Parada registrada pela operação.",
@@ -612,6 +856,7 @@ class PcpAssetViewsTests(TestCase):
 
         self.assertRedirects(abertura, f"/pcp/ativos/{ativo.pk}/")
         self.assertEqual(ativo.status, StatusAtivo.PARADO)
+        self.assertEqual(downtime.categoria, CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO)
 
         encerramento = self.client.post(
             f"/pcp/paradas/{downtime.pk}/encerrar/",
@@ -623,6 +868,18 @@ class PcpAssetViewsTests(TestCase):
         self.assertRedirects(encerramento, f"/pcp/ativos/{ativo.pk}/")
         self.assertIsNotNone(downtime.fim)
         self.assertEqual(ativo.status, StatusAtivo.OPERANDO)
+
+    def test_formulario_parada_exibe_tipos_agrupados(self) -> None:
+        ativo = AtivoService.criar_ativo(codigo="MAQ-GRUPOS", nome="Máquina Grupos")
+
+        response = self.client.get(f"/pcp/ativos/{ativo.pk}/paradas/nova/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<optgroup label="Tempo de Produção (Perdido)">')
+        self.assertContains(response, '<optgroup label="Tempo Ocioso">')
+        self.assertContains(response, "Falta de mão de obra")
+        self.assertContains(response, "Falta de desenho")
+        self.assertNotContains(response, "Não planejado")
 
     def test_historico_localiza_registro_pelos_snapshots(self) -> None:
         ativo = AtivoService.criar_ativo(codigo="MAQ-HIST-ANTIGA", nome="Máquina Histórica Antiga")
@@ -706,6 +963,38 @@ class PcpAssetViewsTests(TestCase):
         self.assertFalse(PcpEvidenciaManutencao.objects.filter(pk=evidencia.pk).exists())
         self.assertTrue(execucao.eventos_auditoria.filter(tipo_evento="evidencia_desativada").exists())
         evidencia.arquivo.storage.delete(evidencia.arquivo.name)
+
+    def test_tela_registra_evidencias_do_problema_e_da_solucao(self) -> None:
+        ativo = AtivoService.criar_ativo(codigo="MAQ-EVID-DUPLA", nome="Máquina Evidência Dupla")
+        execucao = ProgramacaoManutencaoService.iniciar_execucao(
+            ativo_pcp=ativo,
+            tipo=TipoManutencao.CORRETIVA,
+        )
+
+        response = self.client.post(
+            f"/pcp/manutencoes/{execucao.pk}/evidencias/",
+            {
+                "evidencia_problema": SimpleUploadedFile(
+                    "problema.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"
+                ),
+                "descricao_problema": "Falha antes da intervenção",
+                "evidencia_solucao": SimpleUploadedFile(
+                    "solucao.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"
+                ),
+                "descricao_solucao": "Equipamento liberado",
+            },
+        )
+
+        evidencias = list(PcpEvidenciaManutencao.objects.filter(execucao=execucao).order_by("finalidade"))
+        self.assertRedirects(response, f"/pcp/manutencoes/{execucao.pk}/")
+        self.assertEqual(len(evidencias), 2)
+        self.assertEqual(
+            {evidencia.finalidade for evidencia in evidencias},
+            {FinalidadeEvidencia.PROBLEMA, FinalidadeEvidencia.SOLUCAO_DOCUMENTACAO},
+        )
+        self.assertEqual(execucao.eventos_auditoria.filter(tipo_evento="evidencia_adicionada").count(), 2)
+        for evidencia in evidencias:
+            evidencia.arquivo.storage.delete(evidencia.arquivo.name)
 
     def test_tela_inicia_e_conclui_manutencao_documentada(self) -> None:
         ativo = AtivoService.criar_ativo(codigo="MAQ-MAN", nome="Maquina Manutencao")

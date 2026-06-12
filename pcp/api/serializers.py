@@ -121,6 +121,8 @@ class RecalcularPreventivasSerializer(serializers.Serializer):
 class DowntimeSerializer(serializers.ModelSerializer):
     ativo_codigo = serializers.CharField(source="ativo_pcp.codigo", read_only=True)
     ativo_nome = serializers.CharField(source="ativo_pcp.nome", read_only=True)
+    categoria_descricao = serializers.CharField(source="get_categoria_display", read_only=True)
+    tipo_descricao = serializers.CharField(source="get_tipo_display", read_only=True)
 
     class Meta:
         model = PcpDowntime
@@ -129,7 +131,10 @@ class DowntimeSerializer(serializers.ModelSerializer):
             "ativo_pcp",
             "ativo_codigo",
             "ativo_nome",
+            "categoria",
+            "categoria_descricao",
             "tipo",
+            "tipo_descricao",
             "inicio",
             "fim",
             "duracao_minutos",
@@ -141,7 +146,19 @@ class DowntimeSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "ativo_codigo", "ativo_nome", "duracao_minutos", "responsavel", "ativo", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "ativo_codigo",
+            "ativo_nome",
+            "categoria",
+            "categoria_descricao",
+            "tipo_descricao",
+            "duracao_minutos",
+            "responsavel",
+            "ativo",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class DowntimeOpenSerializer(serializers.Serializer):

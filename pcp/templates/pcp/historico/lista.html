@@ -39,7 +39,8 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="bg-light">
                     <tr>
-                        <th class="px-4">Conclusão</th>
+                        <th class="px-4">Data início</th>
+                        <th>Data término</th>
                         <th>Ativo</th>
                         <th>Plano</th>
                         <th>Tipo</th>
@@ -52,6 +53,10 @@
                     {% for execucao in execucoes %}
                     <tr>
                         <td class="px-4 text-nowrap">
+                            <div class="fw-semibold">{{ execucao.data_inicio|date:"d/m/Y" }}</div>
+                            <small class="text-muted">{{ execucao.data_inicio|date:"H:i" }}</small>
+                        </td>
+                        <td class="text-nowrap">
                             <div class="fw-semibold">{{ execucao.data_fim|date:"d/m/Y" }}</div>
                             <small class="text-muted">{{ execucao.data_fim|date:"H:i" }}</small>
                         </td>
@@ -96,7 +101,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <i class="bi bi-clock-history fs-2 text-muted d-block mb-2"></i>
                             <span class="text-muted">
                                 {% if busca %}
@@ -111,6 +116,23 @@
                 </tbody>
             </table>
         </div>
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="card-footer bg-white border-0 px-4 py-3">
+            <nav aria-label="Paginação do histórico de manutenções">
+                <ul class="pagination pagination-sm justify-content-end mb-0">
+                    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+                        <a class="page-link" href="?q={{ busca|urlencode }}&page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Anterior</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+                    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="?q={{ busca|urlencode }}&page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

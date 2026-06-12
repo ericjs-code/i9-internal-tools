@@ -102,13 +102,32 @@ class StatusManutencao(models.TextChoices):
     CANCELADA = "cancelada", "Cancelada"
 
 
+class CategoriaDowntime(models.TextChoices):
+    TEMPO_PRODUCAO_PERDIDO = "tempo_producao_perdido", "Tempo de Produção (Perdido)"
+    TEMPO_OCIOSO = "tempo_ocioso", "Tempo Ocioso"
+
+
 class TipoDowntime(models.TextChoices):
-    NAO_PLANEJADO = "nao_planejado", "Não planejado"
-    PLANEJADO = "planejado", "Planejado"
-    SETUP = "setup", "Setup"
-    QUALIDADE = "qualidade", "Qualidade"
+    FALTA_MAO_OBRA = "falta_mao_obra", "Falta de mão de obra"
+    MAQUINARIO_ESTRAGOU = "maquinario_estragou", "Maquinário estragou"
     FALTA_MATERIAL = "falta_material", "Falta de material"
     MANUTENCAO = "manutencao", "Manutenção"
+    FALTA_DESENHO = "falta_desenho", "Falta de desenho"
+
+
+TIPOS_DOWNTIME_TEMPO_PRODUCAO = (
+    TipoDowntime.FALTA_MAO_OBRA,
+    TipoDowntime.MAQUINARIO_ESTRAGOU,
+    TipoDowntime.FALTA_MATERIAL,
+    TipoDowntime.MANUTENCAO,
+)
+TIPOS_DOWNTIME_TEMPO_OCIOSO = (TipoDowntime.FALTA_DESENHO,)
+TIPOS_DOWNTIME_LEGADOS = ("nao_planejado", "planejado", "setup", "qualidade")
+CATEGORIA_POR_TIPO_DOWNTIME: dict[str, str] = {
+    **{tipo: CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO for tipo in TIPOS_DOWNTIME_TEMPO_PRODUCAO},
+    **{tipo: CategoriaDowntime.TEMPO_OCIOSO for tipo in TIPOS_DOWNTIME_TEMPO_OCIOSO},
+    **{tipo: CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO for tipo in TIPOS_DOWNTIME_LEGADOS},
+}
 
 
 class OrigemApontamento(models.TextChoices):
@@ -143,6 +162,11 @@ class TipoEventoAuditoria(models.TextChoices):
 class TipoEvidencia(models.TextChoices):
     PDF = "pdf", "PDF"
     IMAGEM = "imagem", "Imagem"
+
+
+class FinalidadeEvidencia(models.TextChoices):
+    PROBLEMA = "problema", "Evidência do problema"
+    SOLUCAO_DOCUMENTACAO = "solucao_documentacao", "Evidência da solução / documentação"
 
 
 MARCOS_ALERTA_PREVENTIVA = (30, 15, 7, 1)
@@ -463,6 +487,12 @@ class PcpEvidenciaManutencao(SoftDeleteModel):
         db_index=True,
         verbose_name="Execução",
     )
+    finalidade = models.CharField(
+        max_length=30,
+        choices=FinalidadeEvidencia.choices,
+        db_index=True,
+        verbose_name="Finalidade",
+    )
     arquivo = models.FileField(
         upload_to=evidencia_manutencao_upload_to,
         storage=pcp_private_storage,
@@ -492,6 +522,7 @@ class PcpEvidenciaManutencao(SoftDeleteModel):
         indexes = [
             models.Index(fields=["execucao", "ativo"], name="pcp_evid_exec_ativo_idx"),
             models.Index(fields=["tipo", "ativo"], name="pcp_evid_tipo_ativo_idx"),
+            models.Index(fields=["execucao", "finalidade", "ativo"], name="pcp_evid_exec_final_idx"),
         ]
         permissions = [
             ("desativar_evidencia_manutencao", "Pode desativar evidência de manutenção"),
@@ -560,6 +591,12 @@ class PcpDowntime(SoftDeleteModel):
         db_index=True,
         verbose_name="Ativo",
     )
+    categoria = models.CharField(
+        max_length=30,
+        choices=CategoriaDowntime.choices,
+        db_index=True,
+        verbose_name="Categoria",
+    )
     tipo = models.CharField(max_length=30, choices=TipoDowntime.choices, db_index=True, verbose_name="Tipo")
     inicio = models.DateTimeField(db_index=True, verbose_name="Início")
     fim = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="Fim")
@@ -597,10 +634,24 @@ class PcpDowntime(SoftDeleteModel):
                 check=models.Q(fim__isnull=True) | models.Q(fim__gt=models.F("inicio")),
                 name="pcp_downtime_fim_gt_inicio",
             ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(
+                        categoria=CategoriaDowntime.TEMPO_PRODUCAO_PERDIDO,
+                        tipo__in=(*TIPOS_DOWNTIME_TEMPO_PRODUCAO, *TIPOS_DOWNTIME_LEGADOS),
+                    )
+                    | models.Q(
+                        categoria=CategoriaDowntime.TEMPO_OCIOSO,
+                        tipo__in=TIPOS_DOWNTIME_TEMPO_OCIOSO,
+                    )
+                ),
+                name="pcp_downtime_categoria_tipo_valido",
+            ),
         ]
         indexes = [
             models.Index(fields=["ativo_pcp", "inicio"], name="pcp_down_ativo_inicio_idx"),
             models.Index(fields=["tipo", "inicio"], name="pcp_down_tipo_inicio_idx"),
+            models.Index(fields=["categoria", "inicio"], name="pcp_down_categoria_inicio_idx"),
             models.Index(fields=["fim", "ativo"], name="pcp_down_fim_ativo_idx"),
             models.Index(fields=["origem", "inicio"], name="pcp_down_origem_inicio_idx"),
         ]

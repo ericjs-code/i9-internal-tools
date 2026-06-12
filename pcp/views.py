@@ -4,6 +4,8 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.files.uploadedfile import UploadedFile
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import FileResponse, HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,6 +24,7 @@ from pcp.forms import (
     PcpPlanoManutencaoForm,
 )
 from pcp.models import (
+    FinalidadeEvidencia,
     PcpAtivo,
     PcpDowntime,
     PcpEvidenciaManutencao,
@@ -57,7 +60,7 @@ def dashboard_pcp(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="/login/")
 @group_required(["PCP"])
 def agenda(request: HttpRequest) -> HttpResponse:
-    periodo = request.GET.get("periodo", "30")
+    periodo = _parse_periodo_agenda(request.GET.get("periodo"))
     programacoes = agenda_manutencao(hoje=timezone.localdate(), periodo=periodo)
     return render(
         request,
@@ -80,7 +83,12 @@ def historico(request: HttpRequest) -> HttpResponse:
             | Q(snapshot_ativo_nome__icontains=busca)
             | Q(snapshot_plano_nome__icontains=busca)
         )
-    return render(request, "pcp/historico/lista.html", {"execucoes": queryset, "busca": busca})
+    pagina = Paginator(queryset, 10).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "pcp/historico/lista.html",
+        {"execucoes": pagina, "page_obj": pagina, "busca": busca},
+    )
 
 
 @login_required(login_url="/login/")
@@ -355,17 +363,41 @@ def adicionar_evidencia(request: HttpRequest, execucao_id: int) -> HttpResponse:
     if request.method == "POST":
         form = PcpEvidenciaManutencaoForm(request.POST, request.FILES)
         if form.is_valid():
+            arquivos: list[tuple[UploadedFile, str, str]] = []
+            if form.cleaned_data.get("evidencia_problema"):
+                arquivos.append(
+                    (
+                        form.cleaned_data["evidencia_problema"],
+                        form.cleaned_data["descricao_problema"],
+                        FinalidadeEvidencia.PROBLEMA,
+                    )
+                )
+            if form.cleaned_data.get("evidencia_solucao"):
+                arquivos.append(
+                    (
+                        form.cleaned_data["evidencia_solucao"],
+                        form.cleaned_data["descricao_solucao"],
+                        FinalidadeEvidencia.SOLUCAO_DOCUMENTACAO,
+                    )
+                )
             try:
-                EvidenciaManutencaoService.adicionar(
+                evidencias = EvidenciaManutencaoService.adicionar_multiplas(
                     execucao=execucao,
-                    arquivo=form.cleaned_data["arquivo"],
-                    descricao=form.cleaned_data["descricao"],
+                    arquivos=arquivos,
                     usuario=request.user,
                 )
             except (PcpConflictError, PcpValidationError) as exc:
                 messages.error(request, str(exc))
             else:
-                messages.success(request, "Evidência adicionada com sucesso.")
+                quantidade = len(evidencias)
+                messages.success(
+                    request,
+                    f"{quantidade} evidência{'s' if quantidade != 1 else ''} adicionada{'s' if quantidade != 1 else ''} com sucesso.",
+                )
+        else:
+            for erros in form.errors.values():
+                for erro in erros:
+                    messages.error(request, erro)
     return redirect("pcp_detalhar_execucao", execucao_id=execucao.pk)
 
 
@@ -408,9 +440,15 @@ def baixar_evidencia(request: HttpRequest, evidencia_id: int) -> FileResponse:
 
 
 def _parse_periodo(periodo: str | None) -> int:
-    if periodo in {"7", "30", "90"}:
+    if periodo in {"7", "30", "90", "180", "365"}:
         return int(periodo)
-    return 30
+    return 90
+
+
+def _parse_periodo_agenda(periodo: str | None) -> str:
+    if periodo in {"atrasadas", "hoje", "7", "15", "30", "90", "180", "365"}:
+        return periodo
+    return "90"
 
 
 def _sincronizar_preventiva_visual(*, plano: PcpPlanoManutencao) -> None:
