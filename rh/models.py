@@ -470,7 +470,14 @@ class AvaliacaoDesempenho(models.Model):
 
     @property
     def periodo_formatado(self):
-        return f'{self.ano}{self.ciclo} - {self.mes_referencia}'
+        return f'{self.ano_formatado}{self.ciclo} - {self.mes_referencia}'
+
+    @property
+    def ano_formatado(self):
+        try:
+            return str(int(self.ano))
+        except (TypeError, ValueError):
+            return str(self.ano or '')
 
     @property
     def media(self):

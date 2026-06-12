@@ -14,12 +14,12 @@
 
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-body">
-            <form method="get" class="row g-3 align-items-end">
-                <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Usu&aacute;rio avaliado</label><select name="avaliado" class="form-select"><option value="">Todos</option>{% for funcionario in funcionarios %}<option value="{{ funcionario.id }}" {% if filtros.avaliado == funcionario.id|stringformat:"s" or filtros.funcionario == funcionario.id|stringformat:"s" %}selected{% endif %}>{{ funcionario.get_full_name|default:funcionario.username }}</option>{% endfor %}</select></div>
-                <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Ano</label><input type="number" name="ano" class="form-control" value="{{ filtros.ano }}"></div>
-                <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Ciclo</label><select name="ciclo" class="form-select"><option value="">Todos</option>{% for valor, rotulo in ciclo_choices %}<option value="{{ valor }}" {% if filtros.ciclo == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}</select></div>
-                <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Setor</label><select name="setor" class="form-select"><option value="">Todos</option>{% for valor, rotulo in setores %}<option value="{{ valor }}" {% if filtros.setor == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}</select></div>
-                <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Status</label><select name="status" class="form-select"><option value="">Todos</option>{% for valor, rotulo in status_choices %}<option value="{{ valor }}" {% if filtros.status == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}</select></div>
+            <form method="get" id="formFiltrosDashboardAvaliacoes" class="row g-3 align-items-end">
+                <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Usu&aacute;rio avaliado</label><select name="avaliado" class="form-select auto-submit-filter"><option value="">Todos</option>{% for funcionario in funcionarios %}<option value="{{ funcionario.id }}" {% if filtros.avaliado == funcionario.id|stringformat:"s" or filtros.funcionario == funcionario.id|stringformat:"s" %}selected{% endif %}>{{ funcionario.get_full_name|default:funcionario.username }}</option>{% endfor %}</select></div>
+                <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Ano</label><select name="ano" class="form-select auto-submit-filter"><option value="">Todos</option>{% for ano in anos %}<option value="{{ ano }}" {% if filtros.ano == ano|stringformat:"s" %}selected{% endif %}>{{ ano }}</option>{% endfor %}</select></div>
+                <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Ciclo</label><select name="ciclo" class="form-select auto-submit-filter"><option value="">Todos</option>{% for valor, rotulo in ciclo_choices %}<option value="{{ valor }}" {% if filtros.ciclo == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}</select></div>
+                <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Setor</label><select name="setor" class="form-select auto-submit-filter"><option value="">Todos</option>{% for valor, rotulo in setores %}<option value="{{ valor }}" {% if filtros.setor == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}</select></div>
+                <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Status</label><select name="status" class="form-select auto-submit-filter"><option value="">Todos</option>{% for valor, rotulo in status_choices %}<option value="{{ valor }}" {% if filtros.status == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}</select></div>
                 <div class="col-md-1 d-flex gap-2"><button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-funnel"></i></button><a href="{% url 'dashboard_geral_avaliacoes_desempenho' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a></div>
             </form>
         </div>
@@ -43,8 +43,8 @@
     </div>
 
     <div class="row g-4 mb-4">
-        <div class="col-lg-6"><div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body p-4"><h5 class="fw-bold text-success mb-3">Ranking de maiores m&eacute;dias</h5>{% for avaliacao, media in ranking_maiores %}<div class="d-flex justify-content-between border-bottom py-2"><span>{{ avaliacao.funcionario_nome }} <small class="text-muted">{{ avaliacao.ano }}{{ avaliacao.ciclo }}</small></span><strong>{{ media }}</strong></div>{% empty %}<p class="text-muted mb-0">Sem dados.</p>{% endfor %}</div></div></div>
-        <div class="col-lg-6"><div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body p-4"><h5 class="fw-bold text-danger mb-3">Ranking de menores m&eacute;dias</h5>{% for avaliacao, media in ranking_menores %}<div class="d-flex justify-content-between border-bottom py-2"><span>{{ avaliacao.funcionario_nome }} <small class="text-muted">{{ avaliacao.ano }}{{ avaliacao.ciclo }}</small></span><strong>{{ media }}</strong></div>{% empty %}<p class="text-muted mb-0">Sem dados.</p>{% endfor %}</div></div></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body p-4"><h5 class="fw-bold text-success mb-3">Ranking de maiores m&eacute;dias</h5>{% for avaliacao, media in ranking_maiores %}<div class="d-flex justify-content-between border-bottom py-2"><span>{{ avaliacao.funcionario_nome }} <small class="text-muted">{{ avaliacao.ano_formatado }}{{ avaliacao.ciclo }}</small></span><strong>{{ media }}</strong></div>{% empty %}<p class="text-muted mb-0">Sem dados.</p>{% endfor %}</div></div></div>
+        <div class="col-lg-6"><div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body p-4"><h5 class="fw-bold text-danger mb-3">Ranking de menores m&eacute;dias</h5>{% for avaliacao, media in ranking_menores %}<div class="d-flex justify-content-between border-bottom py-2"><span>{{ avaliacao.funcionario_nome }} <small class="text-muted">{{ avaliacao.ano_formatado }}{{ avaliacao.ciclo }}</small></span><strong>{{ media }}</strong></div>{% empty %}<p class="text-muted mb-0">Sem dados.</p>{% endfor %}</div></div></div>
     </div>
 
     <div class="card border-0 shadow-sm rounded-4 mb-4"><div class="card-body p-4"><h5 class="fw-bold mb-3" style="color: var(--azul-principal);">Evolu&ccedil;&atilde;o por per&iacute;odo</h5><canvas id="evolucaoChart" height="90"></canvas></div></div>
@@ -65,9 +65,17 @@ const statuses = dataFrom('qtd-status');
 const evolucao = dataFrom('evolucao-data');
 new Chart(document.getElementById('competenciaChart'), {type:'bar', data:{labels:competencias.map(i => i.competencia__nome), datasets:[{data:competencias.map(i => Number(i.media).toFixed(2)), backgroundColor:'#FF742E', borderRadius:8}]}, options:{scales:{y:{min:0,max:10}}, plugins:{legend:{display:false}}}});
 new Chart(document.getElementById('setorChart'), {type:'bar', data:{labels:setores.map(i => i.setor), datasets:[{data:setores.map(i => Number(i.media).toFixed(2)), backgroundColor:'#141C3C', borderRadius:8}]}, options:{scales:{y:{min:0,max:10}}, plugins:{legend:{display:false}}}});
-new Chart(document.getElementById('cicloChart'), {type:'doughnut', data:{labels:ciclos.map(i => `${i.ano}${i.ciclo}`), datasets:[{data:ciclos.map(i => i.total), backgroundColor:['#FF742E','#141C3C','#198754','#0dcaf0','#ffc107']}]}});
-new Chart(document.getElementById('statusChart'), {type:'doughnut', data:{labels:statuses.map(i => i.status), datasets:[{data:statuses.map(i => i.total), backgroundColor:['#ffc107','#198754','#6c757d']}]}});
+new Chart(document.getElementById('cicloChart'), {type:'doughnut', data:{labels:ciclos.map(i => `${i.ano}${i.ciclo}`), datasets:[{data:ciclos.map(i => i.total), backgroundColor:['#FF742E','#141C3C','#198754','#0dcaf0','#ffc107']}]}}); 
+new Chart(document.getElementById('statusChart'), {type:'doughnut', data:{labels:statuses.map(i => i.status), datasets:[{data:statuses.map(i => i.total), backgroundColor:['#ffc107','#198754','#6c757d']}]}}); 
 new Chart(document.getElementById('evolucaoChart'), {type:'line', data:{labels:evolucao.map(i => i.label), datasets:[{label:'M&eacute;dia', data:evolucao.map(i => i.media), borderColor:'#FF742E', backgroundColor:'rgba(255,116,46,0.15)', tension:.35, fill:true}]}, options:{scales:{y:{min:0,max:10}}}});
+document.querySelectorAll('.auto-submit-filter').forEach(function (filtro) {
+    filtro.addEventListener('change', function () {
+        const form = filtro.closest('form');
+        if (form) {
+            form.submit();
+        }
+    });
+});
 </script>
 {% endblock %}
 

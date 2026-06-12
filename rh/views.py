@@ -40,6 +40,7 @@ from rh.services.avaliacoes_desempenho import (
     pode_dar_ciencia_colaborador,
     pode_dar_ciencia_gestor,
     pode_editar_avaliacao,
+    pode_visualizar_resultado_avaliacao,
     preencher_snapshot_avaliacao,
 )
 from .models import (Vaga, Candidatura, SolicitacaoVaga, PesquisaDemissional,
@@ -699,7 +700,10 @@ def _aplicar_filtros_avaliacoes_desempenho(queryset, params):
     if avaliado_id:
         queryset = queryset.filter(avaliado_id=avaliado_id)
     if ano:
-        queryset = queryset.filter(ano=ano)
+        try:
+            queryset = queryset.filter(ano=int(ano))
+        except (TypeError, ValueError):
+            pass
     if ciclo:
         queryset = queryset.filter(ciclo=ciclo)
     if status:
@@ -722,6 +726,17 @@ def _setores_visiveis_para(user):
 
 def _opcoes_setores_para_template(user):
     return [(setor.id, setor.nome) for setor in _setores_visiveis_para(user)]
+
+
+def _anos_avaliacoes_desempenho():
+    anos = {
+        int(ano)
+        for ano in AvaliacaoDesempenho.objects
+        .exclude(ano__isnull=True)
+        .values_list('ano', flat=True)
+    }
+    anos.add(timezone.now().year)
+    return sorted(anos, reverse=True)
 
 
 def _salvar_notas_desempenho(avaliacao, notas_limpas):
@@ -756,6 +771,12 @@ def _dados_dashboard_avaliacao(avaliacao, user=None):
         .filter(avaliado=avaliacao.avaliado)
         .order_by('ano', 'ciclo')
     )
+    if user:
+        historico_avaliacoes = [
+            historico
+            for historico in historico_avaliacoes
+            if pode_visualizar_resultado_avaliacao(user, historico)
+        ]
     historico_periodos = [historico.periodo_formatado for historico in historico_avaliacoes]
     competencias_historico = list(CompetenciaDesempenho.objects.filter(ativa=True).order_by('ordem', 'nome'))
     notas_historico = {
@@ -839,7 +860,7 @@ def _nome_arquivo_avaliacao(avaliacao):
     nome = unicodedata.normalize('NFKD', avaliacao.funcionario_nome)
     nome = nome.encode('ascii', 'ignore').decode('ascii')
     nome = re.sub(r'[^A-Za-z0-9]+', '_', nome).strip('_').lower()
-    return f'avaliacao_desempenho_{nome}_{avaliacao.ano}_{avaliacao.ciclo}.pdf'
+    return f'avaliacao_desempenho_{nome}_{avaliacao.ano_formatado}_{avaliacao.ciclo}.pdf'
 
 
 def _paragraph(texto, style):
@@ -1025,7 +1046,7 @@ def _exportar_avaliacoes_desempenho_csv(avaliacoes):
             avaliacao.funcionario_cargo,
             avaliacao.funcionario_setor,
             avaliacao.funcionario_data_admissao.strftime('%d/%m/%Y') if avaliacao.funcionario_data_admissao else '',
-            avaliacao.ano,
+            avaliacao.ano_formatado,
             avaliacao.ciclo,
             avaliacao.mes_referencia,
             avaliacao.periodo_formatado,
@@ -1083,19 +1104,38 @@ def listar_avaliacoes_desempenho(request):
     )
 
     if request.GET.get('export_csv') == '1':
-        return _exportar_avaliacoes_desempenho_csv(avaliacoes)
+        avaliacoes_exportacao = [
+            avaliacao
+            for avaliacao in avaliacoes
+            if pode_visualizar_resultado_avaliacao(request.user, avaliacao)
+        ]
+        return _exportar_avaliacoes_desempenho_csv(avaliacoes_exportacao)
 
     avaliacoes_lista = list(avaliacoes)
     for avaliacao in avaliacoes_lista:
         avaliacao.pode_editar = pode_editar_avaliacao(request.user, avaliacao)
+        avaliacao.pode_visualizar_resultado = pode_visualizar_resultado_avaliacao(request.user, avaliacao)
+        avaliacao.pode_dar_ciencia_colaborador = (
+            pode_dar_ciencia_colaborador(request.user, avaliacao)
+            and not avaliacao.ciencia_colaborador
+        )
+        avaliacao.pode_dar_ciencia_gestor = (
+            pode_dar_ciencia_gestor(request.user, avaliacao)
+            and not avaliacao.ciencia_gestor
+        )
 
-    medias = [avaliacao.media for avaliacao in avaliacoes_lista if avaliacao.media is not None]
+    medias = [
+        avaliacao.media
+        for avaliacao in avaliacoes_lista
+        if avaliacao.pode_visualizar_resultado and avaliacao.media is not None
+    ]
     media_geral = round(sum(medias) / len(medias), 2) if medias else None
 
     context = {
         'avaliacoes': avaliacoes_lista,
         'funcionarios': _funcionarios_avaliacao_queryset(request.user),
         'setores': _opcoes_setores_para_template(request.user),
+        'anos': _anos_avaliacoes_desempenho(),
         'status_choices': AvaliacaoDesempenho.STATUS.choices,
         'ciclo_choices': AvaliacaoDesempenho.CICLO.choices,
         'filtros': request.GET,
@@ -1105,6 +1145,7 @@ def listar_avaliacoes_desempenho(request):
         'media_geral': media_geral,
         'pode_criar_avaliacao': pode_criar_avaliacao(request.user),
         'pode_criar': pode_criar_avaliacao(request.user),
+        'pode_exportar_csv': any(avaliacao.pode_visualizar_resultado for avaliacao in avaliacoes_lista),
     }
     context.update(_usuarios_sem_avaliacao_context(request))
     return render(request, 'rh/listar_avaliacoes_desempenho.html', context)
@@ -1161,6 +1202,13 @@ def nova_avaliacao_desempenho(request):
 @login_required(login_url='/login/')
 def detalhe_avaliacao_desempenho(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
+    if not pode_visualizar_resultado_avaliacao(request.user, avaliacao):
+        messages.warning(
+            request,
+            'O resultado desta avaliação ainda não está disponível. Aguarde a ciência do avaliador.'
+        )
+        return redirect('listar_avaliacoes_desempenho')
+
     return render(request, 'rh/detalhe_avaliacao_desempenho.html', {
         'avaliacao': avaliacao,
         'notas': avaliacao.notas.all(),
@@ -1205,6 +1253,13 @@ def editar_avaliacao_desempenho(request, pk):
 @login_required(login_url='/login/')
 def dashboard_avaliacao_desempenho(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
+    if not pode_visualizar_resultado_avaliacao(request.user, avaliacao):
+        messages.warning(
+            request,
+            'O resultado desta avaliação ainda não está disponível. Aguarde a ciência do avaliador.'
+        )
+        return redirect('listar_avaliacoes_desempenho')
+
     return render(request, 'rh/dashboard_avaliacao_desempenho.html', _dados_dashboard_avaliacao(avaliacao, request.user))
 
 
@@ -1236,9 +1291,21 @@ def dar_ciencia_gestor_avaliacao(request, pk):
 @require_POST
 def dar_ciencia_colaborador_avaliacao(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
+    if avaliacao.avaliado_id != request.user.id:
+        messages.error(request, 'Voce so pode dar ciencia nas suas proprias avaliacoes.')
+        return redirect('listar_avaliacoes_desempenho')
+
+    if not avaliacao.ciencia_gestor:
+        messages.warning(request, 'Você só poderá dar ciência após a ciência do avaliador.')
+        return redirect('listar_avaliacoes_desempenho')
+
+    if avaliacao.ciencia_colaborador:
+        messages.info(request, 'A ciência do colaborador já foi registrada.')
+        return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
+
     if not pode_dar_ciencia_colaborador(request.user, avaliacao):
         messages.error(request, 'Voce so pode dar ciencia nas suas proprias avaliacoes.')
-        return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
+        return redirect('listar_avaliacoes_desempenho')
 
     avaliacao.ciencia_colaborador = True
     avaliacao.data_ciencia_colaborador = timezone.now()
@@ -1259,6 +1326,13 @@ def dar_ciencia_colaborador_avaliacao(request, pk):
 @login_required(login_url='/login/')
 def exportar_pdf_avaliacao_desempenho(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
+    if not pode_visualizar_resultado_avaliacao(request.user, avaliacao):
+        messages.warning(
+            request,
+            'O PDF desta avaliação ainda não está disponível. Aguarde a ciência do avaliador.'
+        )
+        return redirect('listar_avaliacoes_desempenho')
+
     dados = _dados_dashboard_avaliacao(avaliacao, request.user)
     notas = dados['notas']
     historico_avaliacoes = dados['historico_avaliacoes']
@@ -1410,7 +1484,14 @@ def dashboard_geral_avaliacoes_desempenho(request):
         .order_by('avaliacao__setor_avaliado')
     ]
 
-    qtd_por_ciclo = list(avaliacoes.values('ano', 'ciclo').annotate(total=Count('id')).order_by('ano', 'ciclo'))
+    qtd_por_ciclo = [
+        {
+            'ano': str(int(item['ano'])) if item['ano'] is not None else '',
+            'ciclo': item['ciclo'],
+            'total': item['total'],
+        }
+        for item in avaliacoes.values('ano', 'ciclo').annotate(total=Count('id')).order_by('ano', 'ciclo')
+    ]
     qtd_por_status_contador = Counter(avaliacao.status_calculado for avaliacao in avaliacoes_lista)
     qtd_por_status = [
         {
@@ -1423,7 +1504,7 @@ def dashboard_geral_avaliacoes_desempenho(request):
     evolucao = []
     for avaliacao, media in sorted(medias, key=lambda item: (item[0].funcionario_nome, item[0].ano, item[0].ciclo)):
         evolucao.append({
-            'label': f'{avaliacao.funcionario_nome} - {avaliacao.ano}{avaliacao.ciclo}',
+            'label': f'{avaliacao.funcionario_nome} - {avaliacao.ano_formatado}{avaliacao.ciclo}',
             'media': float(media),
         })
 
@@ -1431,6 +1512,7 @@ def dashboard_geral_avaliacoes_desempenho(request):
         'avaliacoes': avaliacoes_lista,
         'funcionarios': _funcionarios_avaliacao_queryset(request.user),
         'setores': _opcoes_setores_para_template(request.user),
+        'anos': _anos_avaliacoes_desempenho(),
         'status_choices': AvaliacaoDesempenho.STATUS.choices,
         'ciclo_choices': AvaliacaoDesempenho.CICLO.choices,
         'filtros': request.GET,
