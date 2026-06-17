@@ -12,6 +12,11 @@
 
     <form method="post">
         {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger border-0 shadow-sm">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
 
         <div class="card border-0 shadow-sm rounded-4 mb-4 border-top border-primary border-4">
             <div class="card-header bg-white pt-4 pb-0 border-0">
@@ -42,6 +47,14 @@
                         {% if form.data_prevista_inicio.errors %}<div class="text-danger small mt-1">{{ form.data_prevista_inicio.errors }}</div>{% endif %}
                     </div>
                     
+                    <div class="col-md-12">
+                        <div class="form-check bg-light border rounded-3 p-3 ps-5">
+                            {{ form.banco_de_talentos }}
+                            <label class="form-check-label fw-bold text-secondary" for="{{ form.banco_de_talentos.id_for_label }}">Banco de Talentos</label>
+                            <small class="text-muted d-block">{{ form.banco_de_talentos.help_text }}</small>
+                        </div>
+                    </div>
+
                     <div class="col-md-12 mt-4 pt-3 border-top">
                         <label class="form-label fw-bold text-secondary small">Motivo da Contratação <span class="text-danger">*</span></label>
                         {{ form.motivo }}
@@ -100,4 +113,29 @@
         </div>
     </form>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const bancoTalentos = document.getElementById('{{ form.banco_de_talentos.id_for_label }}');
+    const dataInicio = document.getElementById('{{ form.data_prevista_inicio.id_for_label }}');
+
+    function atualizarDataInicio() {
+        if (!bancoTalentos || !dataInicio) {
+            return;
+        }
+        if (bancoTalentos.checked) {
+            dataInicio.value = '';
+            dataInicio.disabled = true;
+            dataInicio.classList.add('bg-light');
+        } else {
+            dataInicio.disabled = false;
+            dataInicio.classList.remove('bg-light');
+        }
+    }
+
+    if (bancoTalentos) {
+        bancoTalentos.addEventListener('change', atualizarDataInicio);
+        atualizarDataInicio();
+    }
+});
+</script>
 {% endblock %}

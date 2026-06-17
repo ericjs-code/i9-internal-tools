@@ -32,7 +32,13 @@
                         </div>
                         <div class="col-sm-4">
                             <span class="text-muted small fw-bold d-block mb-1 text-uppercase">Data Prevista</span>
-                            <span class="fw-semibold text-primary"><i class="bi bi-calendar-event me-1"></i> {{ solicitacao.data_prevista_inicio|date:"d/m/Y" }}</span>
+                            <span class="fw-semibold text-primary">
+                                {% if solicitacao.banco_de_talentos %}
+                                    <i class="bi bi-people me-1"></i> Banco de Talentos
+                                {% else %}
+                                    <i class="bi bi-calendar-event me-1"></i> {{ solicitacao.data_prevista_inicio|date:"d/m/Y" }}
+                                {% endif %}
+                            </span>
                         </div>
                         <div class="col-sm-4">
                             <span class="text-muted small fw-bold d-block mb-1 text-uppercase">Quantidade</span>

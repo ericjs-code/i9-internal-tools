@@ -46,7 +46,11 @@
                                 <div class="small text-muted">{{ s.get_departamento_display }} • {{ s.get_motivo_display }}</div>
                             </td>
                             <td class="text-center text-muted fw-semibold">
-                                {{ s.data_prevista_inicio|date:"d/m/Y" }}
+                                {% if s.banco_de_talentos %}
+                                    Banco de Talentos
+                                {% else %}
+                                    {{ s.data_prevista_inicio|date:"d/m/Y" }}
+                                {% endif %}
                             </td>
                             <td class="text-center">
                                 {% if s.status == 'PENDENTE' %}
