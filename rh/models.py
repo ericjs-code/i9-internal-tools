@@ -396,6 +396,11 @@ class Funcionario(models.Model):
     data_atualizacao = models.DateTimeField(auto_now=True)
 
     matricula = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    departamento_planilha = models.CharField(max_length=255, blank=True, null=True)
+    centro_custo_planilha = models.CharField(max_length=255, blank=True, null=True)
+    servico_planilha = models.CharField(max_length=255, blank=True, null=True)
+    gestor_nome_planilha = models.CharField(max_length=255, blank=True, null=True)
+    usuario_planilha = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         status = "Ativo" if self.situacao == "AT" else "Desligado"
@@ -423,6 +428,50 @@ class CompetenciaDesempenho(models.Model):
         return self.nome
 
 
+class CicloAvaliacaoDesempenho(models.Model):
+    class CICLOS(models.TextChoices):
+        A = 'A', 'Ciclo A - Janeiro a Junho'
+        B = 'B', 'Ciclo B - Julho a Dezembro'
+
+    ano = models.PositiveIntegerField()
+    ciclo = models.CharField(max_length=1, choices=CICLOS.choices)
+    data_inicio = models.DateField()
+    data_fim = models.DateField()
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['ano', 'ciclo']
+        ordering = ['-ano', '-ciclo']
+        verbose_name = 'Ciclo de avaliacao de desempenho'
+        verbose_name_plural = 'Ciclos de avaliacao de desempenho'
+
+    def __str__(self):
+        return f'{self.ano}{self.ciclo}'
+
+    @classmethod
+    def periodo_padrao(cls, ano, ciclo):
+        from datetime import date
+
+        if ciclo == cls.CICLOS.A:
+            return date(int(ano), 1, 1), date(int(ano), 6, 30)
+        return date(int(ano), 7, 1), date(int(ano), 12, 31)
+
+    @classmethod
+    def obter_ou_criar(cls, ano, ciclo):
+        data_inicio, data_fim = cls.periodo_padrao(ano, ciclo)
+        return cls.objects.get_or_create(
+            ano=int(ano),
+            ciclo=ciclo,
+            defaults={
+                'data_inicio': data_inicio,
+                'data_fim': data_fim,
+                'ativo': True,
+            },
+        )[0]
+
+
 class AvaliacaoDesempenho(models.Model):
     class CICLO(models.TextChoices):
         A = 'A', 'A - Junho'
@@ -448,6 +497,13 @@ class AvaliacaoDesempenho(models.Model):
     )
     ano = models.PositiveIntegerField()
     ciclo = models.CharField(max_length=1, choices=CICLO.choices)
+    ciclo_avaliacao = models.ForeignKey(
+        CicloAvaliacaoDesempenho,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='avaliacoes',
+    )
     nome_avaliado = models.CharField(max_length=255)
     cargo_avaliado = models.CharField(max_length=150, blank=True, null=True)
     setor_avaliado = models.CharField(max_length=120, blank=True, null=True)
@@ -473,6 +529,7 @@ class AvaliacaoDesempenho(models.Model):
         blank=True,
         related_name='ciencias_colaborador_desempenho',
     )
+    bloqueada = models.BooleanField(default=False)
     atualizado_em = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -483,6 +540,13 @@ class AvaliacaoDesempenho(models.Model):
 
     def __str__(self):
         return f'{self.nome_avaliado} - {self.ano}{self.ciclo}'
+
+    def save(self, *args, **kwargs):
+        if self.ano and self.ciclo and not self.ciclo_avaliacao_id:
+            self.ciclo_avaliacao = CicloAvaliacaoDesempenho.obter_ou_criar(self.ano, self.ciclo)
+        if self.ciencia_gestor and self.ciencia_colaborador:
+            self.bloqueada = True
+        super().save(*args, **kwargs)
 
     @property
     def funcionario(self):
@@ -550,8 +614,10 @@ class AvaliacaoDesempenho(models.Model):
 
         if self.ciencia_gestor and self.ciencia_colaborador:
             self.status = self.STATUS.CIENCIA_CONCLUIDA
+            self.bloqueada = True
             return
 
+        self.bloqueada = False
         if self.ciencia_gestor or self.ciencia_colaborador:
             self.status = self.STATUS.CIENCIA_PARCIAL
             return
@@ -583,6 +649,52 @@ class AvaliacaoDesempenho(models.Model):
             self.STATUS.CIENCIA_CONCLUIDA: 'Ciencia e Concordancia Concluida',
         }
         return labels.get(self.status_calculado, self.STATUS(self.status_calculado).label)
+
+
+class VinculoAvaliacaoDesempenho(models.Model):
+    avaliado = models.ForeignKey(
+        'rh.Funcionario',
+        on_delete=models.CASCADE,
+        related_name='vinculos_avaliacao',
+    )
+    gestor_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='avaliados_vinculados',
+    )
+    gestor_funcionario = models.ForeignKey(
+        'rh.Funcionario',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='avaliados_como_gestor',
+    )
+    gestor_nome_planilha = models.CharField(max_length=255, blank=True, null=True)
+    gestor_email_resolvido = models.EmailField(blank=True, null=True)
+    setor_avaliado = models.CharField(max_length=10, blank=True, null=True)
+    setor_gestor = models.CharField(max_length=10, blank=True, null=True)
+    ativo = models.BooleanField(default=True)
+    origem = models.CharField(max_length=50, default='PLANILHA')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['avaliado'],
+                condition=models.Q(ativo=True),
+                name='rh_vinculo_avaliacao_ativo_avaliado_uniq',
+            ),
+        ]
+        ordering = ['avaliado__nome_completo']
+        verbose_name = 'Vinculo de avaliacao de desempenho'
+        verbose_name_plural = 'Vinculos de avaliacao de desempenho'
+
+    def __str__(self):
+        gestor = self.gestor_usuario or self.gestor_nome_planilha or 'Sem gestor'
+        return f'{self.avaliado} -> {gestor}'
 
 
 class NotaCompetenciaDesempenho(models.Model):

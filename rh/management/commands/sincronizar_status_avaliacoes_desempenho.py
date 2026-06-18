@@ -11,10 +11,11 @@ class Command(BaseCommand):
 
         for avaliacao in AvaliacaoDesempenho.objects.all():
             status_antigo = avaliacao.status
+            bloqueada_antigo = avaliacao.bloqueada
             avaliacao.atualizar_status_ciencia()
 
-            if avaliacao.status != status_antigo:
-                avaliacao.save(update_fields=['status', 'atualizado_em'])
+            if avaliacao.status != status_antigo or avaliacao.bloqueada != bloqueada_antigo:
+                avaliacao.save(update_fields=['status', 'bloqueada', 'atualizado_em'])
                 total += 1
 
         self.stdout.write(

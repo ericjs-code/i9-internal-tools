@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path, reverse_lazy
 from django.conf import settings
 from django.conf.urls.static import static
-from core.views import home
+from core.views import home, trocar_senha_obrigatoria
 from django.contrib.auth import views as auth_views
 
 urlpatterns = [
@@ -28,6 +28,7 @@ urlpatterns = [
                 redirect_authenticated_user=True
             ), name='login'),
             path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+            path('senha/troca-obrigatoria/', trocar_senha_obrigatoria, name='trocar_senha_obrigatoria'),
             path('senha/redefinir/', auth_views.PasswordResetView.as_view(
                 template_name='core/auth/password_reset_form.html',
                 email_template_name='core/auth/password_reset_email.txt',

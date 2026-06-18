@@ -14,11 +14,11 @@ class CustomUserAdmin(UserAdmin):
     # Mantém os fieldsets padrão, mas você pode customizá-los se necessário.
     # Por exemplo, se você tivesse campos extras no CustomUser, adicionaria aqui.
     fieldsets = UserAdmin.fieldsets + (
-        ('Campos Customizados', {'fields': ('teams_username',)}),
+        ('Campos Customizados', {'fields': ('teams_username', 'must_change_password')}),
     )
     
     # Adiciona os campos customizados na lista de exibição principal.
-    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'must_change_password', 'is_staff')
 
 # Registra o nosso modelo CustomUser com a configuração customizada do Admin.
 admin.site.register(CustomUser, CustomUserAdmin)
