@@ -1,8 +1,7 @@
-from core.models import PerfilOrganizacional
 from core.services.permissoes_organizacionais import (
-    setores_gerenciados_por,
     usuario_eh_gestor,
     usuario_tem_acesso_global,
+    usuarios_vinculados_avaliacao_ids,
 )
 from rh.models import AvaliacaoDesempenho
 
@@ -22,10 +21,7 @@ def avaliacoes_visiveis_para(user):
         return qs
 
     if usuario_eh_gestor(user):
-        return qs.filter(
-            avaliado__perfil_organizacional__setor__in=setores_gerenciados_por(user),
-            avaliado__perfil_organizacional__ativo=True,
-        )
+        return qs.filter(avaliado_id__in=usuarios_vinculados_avaliacao_ids(user))
 
     return qs.filter(avaliado=user)
 
@@ -41,17 +37,13 @@ def pode_editar_avaliacao(user, avaliacao):
     if not user or not user.is_authenticated:
         return False
 
-    if avaliacao.ciencia_gestor and avaliacao.ciencia_colaborador:
+    if avaliacao.bloqueada or (avaliacao.ciencia_gestor and avaliacao.ciencia_colaborador):
         return False
 
     if not usuario_eh_gestor(user):
         return False
 
-    return PerfilOrganizacional.objects.filter(
-        usuario=avaliacao.avaliado,
-        setor__in=setores_gerenciados_por(user),
-        ativo=True,
-    ).exists()
+    return avaliacao.avaliado_id in usuarios_vinculados_avaliacao_ids(user)
 
 
 def pode_dar_ciencia_gestor(user, avaliacao):
@@ -64,11 +56,7 @@ def pode_dar_ciencia_gestor(user, avaliacao):
     if not usuario_eh_gestor(user):
         return False
 
-    return PerfilOrganizacional.objects.filter(
-        usuario=avaliacao.avaliado,
-        setor__in=setores_gerenciados_por(user),
-        ativo=True,
-    ).exists()
+    return avaliacao.avaliado_id in usuarios_vinculados_avaliacao_ids(user)
 
 
 def pode_dar_ciencia_colaborador(user, avaliacao):
@@ -89,11 +77,7 @@ def pode_visualizar_resultado_avaliacao(user, avaliacao):
         return True
 
     if usuario_eh_gestor(user):
-        if PerfilOrganizacional.objects.filter(
-            usuario=avaliacao.avaliado,
-            setor__in=setores_gerenciados_por(user),
-            ativo=True,
-        ).exists():
+        if avaliacao.avaliado_id in usuarios_vinculados_avaliacao_ids(user):
             return True
 
     if avaliacao.avaliado_id == user.id:

@@ -332,6 +332,17 @@ Observação: o filtro de mês é lido, mas a variável filtrada não é usada n
 - Usa `convert_hours` de `core.utils.utils`.
 - Atualiza/cria `RegistroAbsenteismo`.
 
+`importar_empregados_avaliacao`:
+
+- Importa a planilha de empregados ativos para a base de Avaliacao de Desempenho.
+- Cria ou vincula `CustomUser`, `Funcionario`, `PerfilOrganizacional` e `VinculoAvaliacaoDesempenho`.
+- Todos os usuarios novos recebem a senha padrao `tmg@2026` e ficam com `must_change_password=True`.
+- Usuarios existentes, sem flags, nao tem senha nem `must_change_password` alterados.
+- `--forcar-troca-senha-existentes` marca usuarios existentes vinculados com `must_change_password=True`, sem redefinir senha.
+- `--atualizar-senha-existentes` redefine a senha dos usuarios existentes para a senha padrao e tambem marca `must_change_password=True`.
+- O importador respeita a coluna `Gestor` da planilha como fonte principal do vinculo gestor/avaliado.
+- Nao existe override manual para Gerson; Gerson deve seguir o gestor informado na planilha atual, hoje Danilo.
+
 ## 5. Regras de negócio
 
 | Regra | Onde está |

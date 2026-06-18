@@ -2,7 +2,8 @@ from django.contrib import admin
 from .models import (Funcionario, RegistroAbsenteismo, Vaga, Candidatura,
                      FormularioAdmissional, DependenteAdmissional,
                      CompetenciaDesempenho, AvaliacaoDesempenho,
-                     NotaCompetenciaDesempenho)
+                     NotaCompetenciaDesempenho, CicloAvaliacaoDesempenho,
+                     VinculoAvaliacaoDesempenho)
 
 @admin.register(Vaga)
 class VagaAdmin(admin.ModelAdmin):
@@ -19,9 +20,9 @@ class CandidaturaAdmin(admin.ModelAdmin):
 @admin.register(Funcionario)
 class FuncionarioAdmin(admin.ModelAdmin):
     # As colunas que vão aparecer na tabela
-    list_display = ('nome_completo', 'cpf', 'matricula', 'get_setor_display', 'get_situacao_display')
+    list_display = ('nome_completo', 'cpf', 'matricula', 'usuario', 'get_setor_display', 'get_situacao_display')
     # Cria uma barra de pesquisa por nome, cpf ou matrícula
-    search_fields = ('nome_completo', 'cpf', 'matricula')
+    search_fields = ('nome_completo', 'cpf', 'matricula', 'usuario__username', 'usuario__email')
     # Cria filtros laterais
     list_filter = ('situacao', 'setor')
 
@@ -77,11 +78,33 @@ class NotaCompetenciaDesempenhoInline(admin.TabularInline):
 
 @admin.register(AvaliacaoDesempenho)
 class AvaliacaoDesempenhoAdmin(admin.ModelAdmin):
-    list_display = ('avaliado', 'ano', 'ciclo', 'status', 'media', 'avaliada_por', 'data_avaliacao')
-    list_filter = ('ano', 'ciclo', 'status', 'ciencia_gestor', 'ciencia_colaborador')
+    list_display = ('avaliado', 'ano', 'ciclo', 'ciclo_avaliacao', 'status', 'media', 'avaliada_por', 'bloqueada', 'data_avaliacao')
+    list_filter = ('ano', 'ciclo', 'status', 'ciencia_gestor', 'ciencia_colaborador', 'bloqueada')
     search_fields = ('avaliado__username', 'avaliado__first_name', 'avaliado__last_name', 'avaliado__email', 'nome_avaliado')
     readonly_fields = ('data_avaliacao', 'atualizado_em')
     inlines = [NotaCompetenciaDesempenhoInline]
+
+
+@admin.register(CicloAvaliacaoDesempenho)
+class CicloAvaliacaoDesempenhoAdmin(admin.ModelAdmin):
+    list_display = ('ano', 'ciclo', 'data_inicio', 'data_fim', 'ativo')
+    list_filter = ('ano', 'ciclo', 'ativo')
+    ordering = ('-ano', '-ciclo')
+
+
+@admin.register(VinculoAvaliacaoDesempenho)
+class VinculoAvaliacaoDesempenhoAdmin(admin.ModelAdmin):
+    list_display = ('avaliado', 'gestor_usuario', 'gestor_funcionario', 'setor_avaliado', 'setor_gestor', 'ativo', 'origem')
+    list_filter = ('ativo', 'origem', 'setor_avaliado', 'setor_gestor')
+    search_fields = (
+        'avaliado__nome_completo',
+        'avaliado__usuario__username',
+        'avaliado__usuario__email',
+        'gestor_usuario__username',
+        'gestor_usuario__email',
+        'gestor_nome_planilha',
+    )
+    autocomplete_fields = ('avaliado', 'gestor_usuario', 'gestor_funcionario')
 
 
 @admin.register(NotaCompetenciaDesempenho)

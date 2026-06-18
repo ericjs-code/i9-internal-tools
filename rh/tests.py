@@ -1,4 +1,5 @@
 from datetime import timedelta
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -8,6 +9,11 @@ from django.utils import timezone
 
 from rh.forms import SolicitacaoVagaForm
 from rh.models import AvaliacaoDesempenho, PesquisaDemissional, Vaga
+from rh.management.commands.importar_empregados_avaliacao import (
+    ImportadorEmpregadosAvaliacao,
+    LinhaEmpregado,
+    RelatorioImportacao,
+)
 from rh.services.avaliacoes_desempenho import pode_visualizar_resultado_avaliacao
 
 
@@ -176,3 +182,108 @@ class AvaliacaoDesempenhoVisualizacaoTests(TestCase):
         self.client.force_login(self.avaliado)
         response = self.client.get(reverse('editar_avaliacao_desempenho', args=[self.avaliacao.pk]))
         self.assertRedirects(response, reverse('dashboard_avaliacao_desempenho', args=[self.avaliacao.pk]))
+
+
+class ImportadorEmpregadosAvaliacaoSenhaTests(TestCase):
+    def _importador(self, **overrides):
+        defaults = {
+            'caminho': Path('planilha.xlsx'),
+            'senha_padrao': 'tmg@2026',
+            'dominio_email': 'i9tmg.com.br',
+            'atualizar_senha_existentes': False,
+            'forcar_troca_senha_existentes': False,
+            'permitir_vinculo_admin': False,
+            'relatorio': RelatorioImportacao(),
+        }
+        defaults.update(overrides)
+        return ImportadorEmpregadosAvaliacao(**defaults)
+
+    def _linha(self, **overrides):
+        defaults = {
+            'numero': 23,
+            'nome': 'GERSON SENE DE PAULO',
+            'admissao': None,
+            'cargo': 'Soldador',
+            'centro_custo': '',
+            'servico': '',
+            'departamento': 'PRODUCAO',
+            'gestor': 'DANILO',
+            'usuario_planilha': '',
+            'nome_normalizado': 'GERSON SENE DE PAULO',
+            'setor_codigo': Vaga.SETORES.FABRICA,
+        }
+        defaults.update(overrides)
+        return LinhaEmpregado(**defaults)
+
+    def test_usuario_novo_recebe_senha_padrao_e_troca_obrigatoria(self):
+        importador = self._importador()
+
+        usuario, criado, senha_definida = importador._buscar_ou_criar_usuario(self._linha(nome='USUARIO NOVO TESTE'))
+
+        self.assertTrue(criado)
+        self.assertTrue(senha_definida)
+        self.assertTrue(usuario.check_password('tmg@2026'))
+        self.assertTrue(usuario.must_change_password)
+        self.assertEqual(importador.relatorio.contadores['usuarios_novos_marcados_troca_senha'], 1)
+
+    def test_usuario_existente_sem_flags_nao_altera_senha_nem_troca_obrigatoria(self):
+        User = get_user_model()
+        usuario = User.objects.create_user(
+            username='existente',
+            email='existente@i9tmg.com.br',
+            password='SenhaAtual!2026',
+            must_change_password=False,
+        )
+        importador = self._importador()
+
+        senha_redefinida = importador._aplicar_politica_usuario_existente(usuario)
+
+        usuario.refresh_from_db()
+        self.assertFalse(senha_redefinida)
+        self.assertTrue(usuario.check_password('SenhaAtual!2026'))
+        self.assertFalse(usuario.must_change_password)
+
+    def test_forcar_troca_senha_existente_nao_redefine_senha(self):
+        User = get_user_model()
+        usuario = User.objects.create_user(
+            username='existente',
+            email='existente@i9tmg.com.br',
+            password='SenhaAtual!2026',
+            must_change_password=False,
+        )
+        importador = self._importador(forcar_troca_senha_existentes=True)
+
+        senha_redefinida = importador._aplicar_politica_usuario_existente(usuario)
+
+        usuario.refresh_from_db()
+        self.assertFalse(senha_redefinida)
+        self.assertTrue(usuario.check_password('SenhaAtual!2026'))
+        self.assertTrue(usuario.must_change_password)
+        self.assertEqual(importador.relatorio.contadores['usuarios_existentes_marcados_troca_senha'], 1)
+
+    def test_atualizar_senha_existente_redefine_senha_e_forca_troca(self):
+        User = get_user_model()
+        usuario = User.objects.create_user(
+            username='existente',
+            email='existente@i9tmg.com.br',
+            password='SenhaAtual!2026',
+            must_change_password=False,
+        )
+        importador = self._importador(atualizar_senha_existentes=True)
+
+        senha_redefinida = importador._aplicar_politica_usuario_existente(usuario)
+
+        usuario.refresh_from_db()
+        self.assertTrue(senha_redefinida)
+        self.assertTrue(usuario.check_password('tmg@2026'))
+        self.assertTrue(usuario.must_change_password)
+        self.assertEqual(importador.relatorio.contadores['usuarios_existentes_marcados_troca_senha'], 1)
+        self.assertEqual(importador.relatorio.contadores['senhas_existentes_redefinidas'], 1)
+
+    def test_gerson_respeita_gestor_da_planilha(self):
+        importador = self._importador()
+
+        gestor = importador._gestor_com_override(self._linha())
+
+        self.assertEqual(gestor, 'DANILO')
+        self.assertEqual(importador.relatorio.overrides, [])

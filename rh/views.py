@@ -46,7 +46,8 @@ from rh.services.avaliacoes_desempenho import (
 )
 from .models import (Vaga, Candidatura, SolicitacaoVaga, PesquisaDemissional,
                      FormularioAdmissional, Funcionario, RegistroAbsenteismo,
-                     AvaliacaoDesempenho, NotaCompetenciaDesempenho, CompetenciaDesempenho)
+                     AvaliacaoDesempenho, NotaCompetenciaDesempenho,
+                     CompetenciaDesempenho, CicloAvaliacaoDesempenho)
 from .forms import (CandidaturaForm, VagaForm, SolicitacaoVagaForm,
                     PesquisaDemissionalGeracaoForm, PesquisaDemissionalRespostaForm,
                     FormularioAdmissionalGeracaoForm, FormularioAdmissionalRespostaForm,
@@ -822,6 +823,15 @@ def _salvar_notas_desempenho(avaliacao, notas_limpas):
         nota.save()
 
 
+def _preencher_ciclo_avaliacao(avaliacao):
+    if avaliacao.ano and avaliacao.ciclo:
+        avaliacao.ciclo_avaliacao = CicloAvaliacaoDesempenho.obter_ou_criar(
+            avaliacao.ano,
+            avaliacao.ciclo,
+        )
+    return avaliacao
+
+
 def _dados_dashboard_avaliacao(avaliacao, user=None):
     notas = list(avaliacao.notas.select_related('competencia').order_by('competencia__ordem', 'competencia__nome'))
     media = avaliacao.media
@@ -1313,6 +1323,7 @@ def nova_avaliacao_desempenho(request):
             with transaction.atomic():
                 avaliacao = form.save(commit=False)
                 avaliacao.avaliada_por = request.user
+                _preencher_ciclo_avaliacao(avaliacao)
                 preencher_snapshot_avaliacao(avaliacao)
                 avaliacao.atualizar_status_ciencia()
                 avaliacao.save()
@@ -1359,6 +1370,7 @@ def editar_avaliacao_desempenho(request, pk):
         if form.is_valid() and notas_form.is_valid():
             with transaction.atomic():
                 avaliacao = form.save(commit=False)
+                _preencher_ciclo_avaliacao(avaliacao)
                 if not avaliacao.nome_avaliado:
                     preencher_snapshot_avaliacao(avaliacao)
                 avaliacao.atualizar_status_ciencia()
