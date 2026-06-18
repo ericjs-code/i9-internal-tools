@@ -14,6 +14,7 @@ urlpatterns = [
     path('solicitacoes/<int:pk>/', views.detalhe_solicitacao, name='detalhe_solicitacao'),
     path('pesquisa-demissional/', views.listar_pesquisas, name='listar_pesquisas'),
     path('pesquisa-demissional/gerar/', views.gerar_pesquisa, name='gerar_pesquisa'),
+    path('pesquisa-demissional/<uuid:uuid_pesquisa>/gerar-novo-link/', views.gerar_novo_link_pesquisa_demissional, name='gerar_novo_link_pesquisa_demissional'),
     path('pesquisa-demissional/responder/<uuid:uuid_pesquisa>/', views.responder_pesquisa, name='responder_pesquisa'),
     path('avaliacoes-desempenho/', views.listar_avaliacoes_desempenho, name='listar_avaliacoes_desempenho'),
     path('avaliacoes-desempenho/dashboard-geral/', views.dashboard_geral_avaliacoes_desempenho, name='dashboard_geral_avaliacoes_desempenho'),

@@ -97,7 +97,7 @@ def pode_visualizar_resultado_avaliacao(user, avaliacao):
             return True
 
     if avaliacao.avaliado_id == user.id:
-        return avaliacao.ciencia_gestor is True
+        return True
 
     return False
 

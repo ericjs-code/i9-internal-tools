@@ -2,6 +2,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from phonenumber_field.modelfields import PhoneNumberField
+from django.utils import timezone
 from .constants import (
     GRAU_PARENTESCO_CONTATO_CHOICES,
     GRAU_PARENTESCO_DEPENDENTE_CHOICES,
@@ -10,6 +11,7 @@ from .constants import (
 )
 import uuid
 import os
+from datetime import timedelta
 
 
 def validar_curriculo(value):
@@ -122,7 +124,8 @@ class SolicitacaoVaga(models.Model):
     departamento = models.CharField(max_length=2, choices=Vaga.SETORES.choices)  # Reutilizando os setores da classe Vaga
     nome_vaga = models.CharField(max_length=150, verbose_name="Nome da Vaga")
     quantidade_vagas = models.PositiveIntegerField(default=1)
-    data_prevista_inicio = models.DateField(verbose_name="Data Prevista para Início")
+    data_prevista_inicio = models.DateField(null=True, blank=True, verbose_name="Data Prevista para Início")
+    banco_de_talentos = models.BooleanField(default=False, verbose_name="Banco de Talentos")
 
     motivo = models.CharField(max_length=20, choices=MOTIVOS)
     nome_substituido = models.CharField(max_length=150, blank=True, null=True,
@@ -144,16 +147,32 @@ class SolicitacaoVaga(models.Model):
 
 
 class PesquisaDemissional(models.Model):
+    class STATUS(models.TextChoices):
+        PENDENTE = 'PENDENTE', 'Pendente'
+        RESPONDIDA = 'RESPONDIDA', 'Respondida'
+        EXPIRADA = 'EXPIRADA', 'Expirada'
+        CANCELADA = 'CANCELADA', 'Cancelada'
+
     TIPO_DEMISSAO_CHOICES = [
         ('VOLUNTARIA', 'Pedido de Demissão (Iniciativa do Colaborador)'),
         ('INVOLUNTARIA', 'Demissão sem Justa Causa (Iniciativa da Empresa)'),
         ('JUSTA_CAUSA', 'Demissão por Justa Causa'),
         ('ACORDO', 'Acordo entre as partes'),
+        ('TERMINO_CONTRATO_TRABALHO', 'Termino de Contrato de Trabalho'),
     ]
 
     id_pesquisa = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     gerada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='pesquisas_geradas')
     data_geracao = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS.choices, default=STATUS.PENDENTE)
+    data_expiracao = models.DateTimeField(null=True, blank=True)
+    pesquisa_origem = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='novos_links',
+    )
     respondida = models.BooleanField(default=False, verbose_name="Pesquisa já foi respondida?")
     data_resposta = models.DateTimeField(null=True, blank=True)
 
@@ -173,12 +192,37 @@ class PesquisaDemissional(models.Model):
     nota_recomendacao = models.IntegerField(blank=True, null=True, verbose_name="Nota - Recomendação da Empresa (eNPS)")
 
     def __str__(self):
-        status = 'Respondida' if self.respondida else 'Pendente'
-        return f'{self.ex_funcionario_nome} - {self.get_setor_display()}({status})'
+        return f'{self.ex_funcionario_nome} - {self.get_setor_display()}({self.get_status_display()})'
 
     def get_link_externo(self):
         from django.urls import reverse
         return reverse('responder_pesquisa', kwargs={'uuid_pesquisa': self.id_pesquisa})
+
+    @property
+    def esta_expirada(self):
+        if self.status == self.STATUS.RESPONDIDA or self.respondida:
+            return False
+        if not self.data_expiracao:
+            return False
+        return timezone.now() > self.data_expiracao
+
+    @property
+    def pode_gerar_novo_link(self):
+        return self.status == self.STATUS.EXPIRADA or self.esta_expirada
+
+    def atualizar_status_expiracao(self):
+        if self.status == self.STATUS.RESPONDIDA or self.respondida:
+            self.status = self.STATUS.RESPONDIDA
+            return
+        if self.data_expiracao and timezone.now() > self.data_expiracao:
+            self.status = self.STATUS.EXPIRADA
+
+    def save(self, *args, **kwargs):
+        if self.respondida:
+            self.status = self.STATUS.RESPONDIDA
+        elif not self.data_expiracao and self.status == self.STATUS.PENDENTE:
+            self.data_expiracao = timezone.now() + timedelta(days=15)
+        super().save(*args, **kwargs)
 
 
 SIM_NAO_CHOICES = [
@@ -533,7 +577,12 @@ class AvaliacaoDesempenho(models.Model):
 
     @property
     def status_calculado_display(self):
-        return self.STATUS(self.status_calculado).label
+        labels = {
+            self.STATUS.CIENCIA_PENDENTE: 'Ciencia e Concordancia Pendente',
+            self.STATUS.CIENCIA_PARCIAL: 'Ciencia e Concordancia Parcial',
+            self.STATUS.CIENCIA_CONCLUIDA: 'Ciencia e Concordancia Concluida',
+        }
+        return labels.get(self.status_calculado, self.STATUS(self.status_calculado).label)
 
 
 class NotaCompetenciaDesempenho(models.Model):

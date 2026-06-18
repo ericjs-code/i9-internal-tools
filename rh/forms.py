@@ -48,6 +48,7 @@ class SolicitacaoVagaForm(forms.ModelForm):
 
         widgets = {
             'data_prevista_inicio': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'banco_de_talentos': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'cargo_solicitante': forms.TextInput(
                 attrs={'class': 'form-control', 'placeholder': 'Ex: Gerente de Obras'}),
             'nome_vaga': forms.TextInput(attrs={'class': 'form-control'}),
@@ -65,9 +66,14 @@ class SolicitacaoVagaForm(forms.ModelForm):
             'atitudes_desejaveis': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'observacoes_gerais': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
+        help_texts = {
+            'banco_de_talentos': 'Marque esta opção quando a vaga não tiver previsão imediata de início e for destinada à formação de banco de talentos.',
+        }
 
     def clean_data_prevista_inicio(self):
         data = self.cleaned_data.get('data_prevista_inicio')
+        if self.data.get('banco_de_talentos'):
+            return None
         if data:
             if data.weekday() != 0:
                 raise ValidationError(
@@ -78,6 +84,16 @@ class SolicitacaoVagaForm(forms.ModelForm):
         cleaned_data = super().clean()
         motivo = cleaned_data.get('motivo')
         nome_substituido = cleaned_data.get('nome_substituido')
+        banco_de_talentos = cleaned_data.get('banco_de_talentos')
+        data_prevista_inicio = cleaned_data.get('data_prevista_inicio')
+
+        if not banco_de_talentos and not data_prevista_inicio:
+            raise forms.ValidationError(
+                'Informe a data de início previsto ou marque a opção Banco de Talentos.'
+            )
+
+        if banco_de_talentos:
+            cleaned_data['data_prevista_inicio'] = None
 
         if motivo and 'SUBST' in motivo:
             if not nome_substituido:
@@ -437,7 +453,15 @@ class AvaliacaoDesempenhoForm(forms.ModelForm):
         fields = ['avaliado', 'ano', 'ciclo', 'status', 'comentarios']
         widgets = {
             'avaliado': forms.Select(attrs={'class': 'form-select'}),
-            'ano': forms.NumberInput(attrs={'class': 'form-control', 'min': '2000'}),
+            'ano': forms.TextInput(attrs={
+                'class': 'form-control',
+                'autocomplete': 'off',
+                'inputmode': 'numeric',
+                'pattern': '[0-9]{4}',
+                'maxlength': '4',
+                'placeholder': 'Ex: 2026',
+                'oninput':"this.value = this.value.replace(/[^0-9]/g, '')",
+            }),
             'ciclo': forms.Select(attrs={'class': 'form-select'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
             'comentarios': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
@@ -446,6 +470,15 @@ class AvaliacaoDesempenhoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         usuario_logado = kwargs.pop('usuario_logado', None)
         super().__init__(*args, **kwargs)
+        labels_status = {
+            AvaliacaoDesempenho.STATUS.CIENCIA_PENDENTE: 'Ciencia e Concordancia Pendente',
+            AvaliacaoDesempenho.STATUS.CIENCIA_PARCIAL: 'Ciencia e Concordancia Parcial',
+            AvaliacaoDesempenho.STATUS.CIENCIA_CONCLUIDA: 'Ciencia e Concordancia Concluida',
+        }
+        self.fields['status'].choices = [
+            (valor, labels_status.get(valor, rotulo))
+            for valor, rotulo in self.fields['status'].choices
+        ]
 
         if usuario_logado:
             self.fields['avaliado'].queryset = usuarios_avaliaveis_para(usuario_logado)
@@ -508,7 +541,7 @@ class NotasCompetenciasDesempenhoForm(forms.Form):
                 required=True,
                 label=competencia.nome,
                 initial=nota_atual.nota if nota_atual else None,
-                widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '10'})
+                widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '10','onkeydown': "return event.key !== 'e' && event.key !== 'E' && event.key !== '+' && event.key !== '-';", 'oninput': "if(parseInt(this.value) > 10) this.value = 10; if(parseInt(this.value) < 0) this.value = 1;"})
             )
             self.fields[nome_comentario] = forms.CharField(
                 required=False,

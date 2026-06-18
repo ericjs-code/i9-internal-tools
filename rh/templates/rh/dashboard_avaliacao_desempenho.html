@@ -45,15 +45,30 @@
         <div class="col-xl-3 col-md-8">
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-body p-3">
-                    <span class="text-muted small fw-semibold d-block mb-2">Status de Ci&ecirc;ncia</span>
+                    <span class="text-muted small fw-semibold d-block mb-2">Status de Ci&ecirc;ncia e Concord&acirc;ncia</span>
                     <div class="d-flex flex-wrap gap-2">
-                        <span class="badge {% if avaliacao.ciencia_gestor %}bg-success{% else %}bg-warning text-dark{% endif %}">Gestor: {% if avaliacao.ciencia_gestor %}Ciente{% else %}Pendente{% endif %}</span>
-                        <span class="badge {% if avaliacao.ciencia_colaborador %}bg-success{% else %}bg-warning text-dark{% endif %}">Colaborador: {% if avaliacao.ciencia_colaborador %}Ciente{% else %}Pendente{% endif %}</span>
+                        <span class="badge {% if avaliacao.ciencia_gestor %}bg-success{% else %}bg-warning text-dark{% endif %}">Gestor: {% if avaliacao.ciencia_gestor %}Ciente e de acordo{% else %}Pendente{% endif %}</span>
+                        <span class="badge {% if avaliacao.ciencia_colaborador %}bg-success{% else %}bg-warning text-dark{% endif %}">Colaborador: {% if avaliacao.ciencia_colaborador %}Ciente e de acordo{% else %}Pendente{% endif %}</span>
                     </div>
                     <div class="d-flex flex-wrap gap-2 mt-3">
-                        {% if pode_dar_ciencia_gestor %}<form method="post" action="{% url 'dar_ciencia_gestor_avaliacao' avaliacao.pk %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-primary">Ci&ecirc;ncia gestor</button></form>{% endif %}
-                        {% if pode_dar_ciencia_colaborador %}<form method="post" action="{% url 'dar_ciencia_colaborador_avaliacao' avaliacao.pk %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-success">Ci&ecirc;ncia colaborador</button></form>{% endif %}
+                        {% if pode_dar_ciencia_gestor %}
+                            <form id="formCienciaGestor" method="post" action="{% url 'dar_ciencia_gestor_avaliacao' avaliacao.pk %}">{% csrf_token %}</form>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCienciaGestor">Registrar ci&ecirc;ncia e concord&acirc;ncia como gestor</button>
+                        {% endif %}
+                        {% if pode_dar_ciencia_colaborador %}
+                            <form id="formCienciaColaborador" method="post" action="{% url 'dar_ciencia_colaborador_avaliacao' avaliacao.pk %}">{% csrf_token %}</form>
+                            <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalCienciaColaborador">Registrar ci&ecirc;ncia e concord&acirc;ncia como colaborador</button>
+                        {% endif %}
                     </div>
+                    {% if request.user == avaliacao.avaliado %}
+                        {% if avaliacao.ciencia_colaborador %}
+                            <span class="badge bg-success mt-3">Sua ci&ecirc;ncia e concord&acirc;ncia j&aacute; foi registrada</span>
+                        {% elif colaborador_aguardando_ciencia_gestor %}
+                            <div class="alert alert-warning small mt-3 mb-0">
+                                A ci&ecirc;ncia e concord&acirc;ncia do colaborador ficar&aacute; dispon&iacute;vel ap&oacute;s o registro da ci&ecirc;ncia e concord&acirc;ncia do gestor.
+                            </div>
+                        {% endif %}
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -160,6 +175,52 @@
 
     <div class="card border-0 shadow-sm rounded-3 mb-3"><div class="card-body p-3"><h5 class="fw-bold mb-3" style="color: var(--azul-principal);">Coment&aacute;rios gerais</h5><div class="p-3 bg-light rounded" style="white-space: pre-wrap;">{{ avaliacao.comentarios|default:"Nenhum comentario geral informado." }}</div></div></div>
 </div>
+
+{% if pode_dar_ciencia_gestor %}
+<div class="modal fade" id="modalCienciaGestor" tabindex="-1" aria-labelledby="modalCienciaGestorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCienciaGestorLabel">Confirmar Ci&ecirc;ncia e Concord&acirc;ncia do Gestor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>Ao registrar sua ci&ecirc;ncia e concord&acirc;ncia, voc&ecirc; confirma que analisou a avalia&ccedil;&atilde;o de desempenho deste colaborador, est&aacute; ciente das notas, coment&aacute;rios e crit&eacute;rios aplicados, e concorda com o resultado registrado no sistema.</p>
+                <p>Ap&oacute;s a confirma&ccedil;&atilde;o, sua ci&ecirc;ncia ficar&aacute; registrada com seu usu&aacute;rio, data e hor&aacute;rio.</p>
+                <p>Se o colaborador tamb&eacute;m registrar ci&ecirc;ncia e concord&acirc;ncia, a avalia&ccedil;&atilde;o ser&aacute; considerada conclu&iacute;da e n&atilde;o poder&aacute; mais ser alterada por gestores.</p>
+                <p class="fw-semibold mb-0">Deseja confirmar sua ci&ecirc;ncia e concord&acirc;ncia?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" form="formCienciaGestor" class="btn btn-success">Confirmar ci&ecirc;ncia e concord&acirc;ncia</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if pode_dar_ciencia_colaborador %}
+<div class="modal fade" id="modalCienciaColaborador" tabindex="-1" aria-labelledby="modalCienciaColaboradorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCienciaColaboradorLabel">Confirmar Ci&ecirc;ncia e Concord&acirc;ncia do Colaborador</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>Ao registrar sua ci&ecirc;ncia e concord&acirc;ncia, voc&ecirc; confirma que visualizou sua avalia&ccedil;&atilde;o de desempenho, est&aacute; ciente das notas, coment&aacute;rios e crit&eacute;rios aplicados, e concorda que recebeu acesso ao resultado registrado no sistema.</p>
+                <p>Ap&oacute;s a confirma&ccedil;&atilde;o, sua ci&ecirc;ncia ficar&aacute; registrada com seu usu&aacute;rio, data e hor&aacute;rio.</p>
+                <p>Quando gestor e colaborador registrarem ci&ecirc;ncia e concord&acirc;ncia, a avalia&ccedil;&atilde;o ser&aacute; considerada conclu&iacute;da.</p>
+                <p class="fw-semibold mb-0">Deseja confirmar sua ci&ecirc;ncia e concord&acirc;ncia?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" form="formCienciaColaborador" class="btn btn-success">Confirmar ci&ecirc;ncia e concord&acirc;ncia</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {{ chart_labels|json_script:"chart-labels" }}
 {{ chart_values|json_script:"chart-values" }}

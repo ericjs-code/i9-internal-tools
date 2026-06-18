@@ -2,6 +2,7 @@
 import re
 import unicodedata
 from collections import Counter
+from datetime import timedelta
 from html import escape
 from pathlib import Path
 import pandas as pd
@@ -258,6 +259,7 @@ def detalhe_solicitacao(request, pk):
 @login_required(login_url='/login/')
 @group_required(['RH'])
 def listar_pesquisas(request):
+    _expirar_pesquisas_demissionais_vencidas()
     pesquisas = PesquisaDemissional.objects.all().order_by('-data_geracao')
 
     if request.GET.get('export_csv') == '1':
@@ -269,29 +271,32 @@ def listar_pesquisas(request):
 
 
         writer.writerow([
-            'Ex-Colaborador', 'Setor', 'Data Geracao', 'Tempo Casa', 'Periodo Saida', 'Tipo Demissao',
+            'Ex-Colaborador', 'Setor', 'Data Geracao', 'Status', 'Data Expiracao', 'Tempo Casa', 'Periodo Saida', 'Tipo Demissao',
             'Motivo Saida', 'Nota Lideranca', 'Nota Oportunidade', 'Nota Reconhecimento',
             'Nota Clima', 'NPS (Recomendacao)', 'O que faria diferente'
         ])
 
         for p in pesquisas:
-            if getattr(p, 'respondida', False) or p.nota_lideranca:
-                writer.writerow([
-                    p.ex_funcionario_nome, p.get_setor_display(),
-                    p.data_geracao.strftime("%d/%m/%Y %H:%M") if p.data_geracao else '',
-                    p.tempo_casa, p.periodo_saida, p.tipo_demissao,
-                    p.motivo_saida, p.nota_lideranca, p.nota_oportunidade, p.nota_reconhecimento,
-                    p.nota_clima, p.nota_recomendacao, p.diferente
-                ])
+            writer.writerow([
+                p.ex_funcionario_nome, p.get_setor_display(),
+                p.data_geracao.strftime("%d/%m/%Y %H:%M") if p.data_geracao else '',
+                p.get_status_display(),
+                timezone.localtime(p.data_expiracao).strftime("%d/%m/%Y %H:%M") if p.data_expiracao else '',
+                p.tempo_casa, p.periodo_saida, p.get_tipo_demissao_display(),
+                p.motivo_saida, p.nota_lideranca, p.nota_oportunidade, p.nota_reconhecimento,
+                p.nota_clima, p.nota_recomendacao, p.diferente
+            ])
         return response
 
     total_geradas = pesquisas.count()
-    total_respondidas = pesquisas.exclude(nota_lideranca__isnull=True).count()
+    total_respondidas = pesquisas.filter(status=PesquisaDemissional.STATUS.RESPONDIDA).count()
+    total_expiradas = pesquisas.filter(status=PesquisaDemissional.STATUS.EXPIRADA).count()
 
     context = {
         'pesquisas': pesquisas,
         'total_geradas': total_geradas,
         'total_respondidas': total_respondidas,
+        'total_expiradas': total_expiradas,
     }
 
     return render(request, 'rh/listar_pesquisas.html', context)
@@ -306,6 +311,8 @@ def gerar_pesquisa(request):
         if form.is_valid():
             pesquisa = form.save(commit=False)
             pesquisa.gerada_por = request.user
+            pesquisa.status = PesquisaDemissional.STATUS.PENDENTE
+            pesquisa.data_expiracao = timezone.now() + timedelta(days=15)
             pesquisa.save()
             messages.success(request, f"Link gerado para {pesquisa.ex_funcionario_nome}.")
             return redirect('listar_pesquisas')
@@ -319,21 +326,69 @@ def gerar_pesquisa(request):
 def responder_pesquisa(request, uuid_pesquisa):
     """Rota externa acesso via link publico"""
     pesquisa = get_object_or_404(PesquisaDemissional, id_pesquisa=uuid_pesquisa)
+    status_anterior = pesquisa.status
+    pesquisa.atualizar_status_expiracao()
+    if pesquisa.status != status_anterior:
+        pesquisa.save(update_fields=['status'])
 
-    if pesquisa.respondida:
+    if pesquisa.status == PesquisaDemissional.STATUS.EXPIRADA:
+        return render(request, 'rh/pesquisa_expirada.html', {'pesquisa': pesquisa})
+
+    if pesquisa.respondida or pesquisa.status == PesquisaDemissional.STATUS.RESPONDIDA:
         return render(request, 'rh/pesquisa_ja_respondida.html', {'pesquisa': pesquisa})
 
     if request.method == 'POST':
         form = PesquisaDemissionalRespostaForm(request.POST, instance=pesquisa)
         if form.is_valid():
             pesquisa = form.save(commit=False)
+            pesquisa.atualizar_status_expiracao()
+            if pesquisa.status == PesquisaDemissional.STATUS.EXPIRADA:
+                pesquisa.save(update_fields=['status'])
+                return render(request, 'rh/pesquisa_expirada.html', {'pesquisa': pesquisa})
             pesquisa.respondida = True
+            pesquisa.status = PesquisaDemissional.STATUS.RESPONDIDA
             pesquisa.data_resposta = timezone.now()
             pesquisa.save()
             return render(request, 'rh/pesquisa_sucesso.html')
     else:
         form = PesquisaDemissionalRespostaForm()
     return render(request, 'rh/responder_pesquisa.html', {'form': form, 'pesquisa': pesquisa})
+
+
+@login_required(login_url='/login/')
+@group_required(['RH'])
+@require_POST
+def gerar_novo_link_pesquisa_demissional(request, uuid_pesquisa):
+    pesquisa = get_object_or_404(PesquisaDemissional, id_pesquisa=uuid_pesquisa)
+    status_anterior = pesquisa.status
+    pesquisa.atualizar_status_expiracao()
+    if pesquisa.status != status_anterior:
+        pesquisa.save(update_fields=['status'])
+
+    if not pesquisa.pode_gerar_novo_link:
+        messages.warning(request, 'Novo link só pode ser gerado para pesquisa expirada.')
+        return redirect('listar_pesquisas')
+
+    PesquisaDemissional.objects.create(
+        gerada_por=request.user,
+        status=PesquisaDemissional.STATUS.PENDENTE,
+        data_expiracao=timezone.now() + timedelta(days=15),
+        pesquisa_origem=pesquisa,
+        ex_funcionario_nome=pesquisa.ex_funcionario_nome,
+        setor=pesquisa.setor,
+        tipo_demissao=pesquisa.tipo_demissao,
+        periodo_saida=pesquisa.periodo_saida,
+        tempo_casa=pesquisa.tempo_casa,
+    )
+    messages.success(request, 'Novo link gerado com sucesso. O novo prazo de resposta expira em 15 dias.')
+    return redirect('listar_pesquisas')
+
+
+def _expirar_pesquisas_demissionais_vencidas():
+    PesquisaDemissional.objects.filter(
+        status=PesquisaDemissional.STATUS.PENDENTE,
+        data_expiracao__lt=timezone.now(),
+    ).update(status=PesquisaDemissional.STATUS.EXPIRADA)
 
 
 def _dependentes_texto(formulario):
@@ -738,6 +793,18 @@ def _anos_avaliacoes_desempenho():
     return [str(ano) for ano in sorted(anos, reverse=True)]
 
 
+def _status_choices_avaliacao_interface():
+    labels = {
+        AvaliacaoDesempenho.STATUS.CIENCIA_PENDENTE: 'Ciencia e Concordancia Pendente',
+        AvaliacaoDesempenho.STATUS.CIENCIA_PARCIAL: 'Ciencia e Concordancia Parcial',
+        AvaliacaoDesempenho.STATUS.CIENCIA_CONCLUIDA: 'Ciencia e Concordancia Concluida',
+    }
+    return [
+        (valor, labels.get(valor, rotulo))
+        for valor, rotulo in AvaliacaoDesempenho.STATUS.choices
+    ]
+
+
 def _salvar_notas_desempenho(avaliacao, notas_limpas):
     notas_existentes = {
         nota.competencia_id: nota
@@ -804,7 +871,17 @@ def _dados_dashboard_avaliacao(avaliacao, user=None):
 
     pode_editar = pode_editar_avaliacao(user, avaliacao) if user else False
     pode_ciencia_gestor = pode_dar_ciencia_gestor(user, avaliacao) if user else False
-    pode_ciencia_colaborador = pode_dar_ciencia_colaborador(user, avaliacao) if user else False
+    usuario_eh_avaliado = bool(user and user.is_authenticated and avaliacao.avaliado_id == user.id)
+    pode_ciencia_colaborador = (
+        usuario_eh_avaliado
+        and avaliacao.ciencia_gestor
+        and not avaliacao.ciencia_colaborador
+    )
+    colaborador_aguardando_ciencia_gestor = (
+        usuario_eh_avaliado
+        and not avaliacao.ciencia_gestor
+        and not avaliacao.ciencia_colaborador
+    )
 
     return {
         'avaliacao': avaliacao,
@@ -827,7 +904,8 @@ def _dados_dashboard_avaliacao(avaliacao, user=None):
         'medias_historico_values': [item['media'] for item in medias_historico],
         'pode_editar': pode_editar,
         'pode_dar_ciencia_gestor': pode_ciencia_gestor and not avaliacao.ciencia_gestor,
-        'pode_dar_ciencia_colaborador': pode_ciencia_colaborador and not avaliacao.ciencia_colaborador,
+        'pode_dar_ciencia_colaborador': pode_ciencia_colaborador,
+        'colaborador_aguardando_ciencia_gestor': colaborador_aguardando_ciencia_gestor,
     }
 
 
@@ -1018,9 +1096,9 @@ def _assinaturas_pdf(avaliacao):
 
 def _ciencia_pdf(avaliacao, normal):
     linhas = [
-        [_paragraph('<b>Ciencia do Gestor</b>', normal), _paragraph('Ciente' if avaliacao.ciencia_gestor else 'Pendente', normal), _paragraph('<b>Usuario</b>', normal), _paragraph(avaliacao.usuario_ciencia_gestor.get_username() if avaliacao.usuario_ciencia_gestor else '-', normal)],
+        [_paragraph('<b>Ciencia e Concordancia do Gestor</b>', normal), _paragraph('Ciente e de acordo' if avaliacao.ciencia_gestor else 'Pendente', normal), _paragraph('<b>Usuario</b>', normal), _paragraph(avaliacao.usuario_ciencia_gestor.get_username() if avaliacao.usuario_ciencia_gestor else '-', normal)],
         [_paragraph('<b>Data/Hora</b>', normal), _paragraph(timezone.localtime(avaliacao.data_ciencia_gestor).strftime('%d/%m/%Y %H:%M') if avaliacao.data_ciencia_gestor else '-', normal), _paragraph('', normal), _paragraph('', normal)],
-        [_paragraph('<b>Ciencia do Colaborador</b>', normal), _paragraph('Ciente' if avaliacao.ciencia_colaborador else 'Pendente', normal), _paragraph('<b>Usuario</b>', normal), _paragraph(avaliacao.usuario_ciencia_colaborador.get_username() if avaliacao.usuario_ciencia_colaborador else '-', normal)],
+        [_paragraph('<b>Ciencia e Concordancia do Colaborador</b>', normal), _paragraph('Ciente e de acordo' if avaliacao.ciencia_colaborador else 'Pendente', normal), _paragraph('<b>Usuario</b>', normal), _paragraph(avaliacao.usuario_ciencia_colaborador.get_username() if avaliacao.usuario_ciencia_colaborador else '-', normal)],
         [_paragraph('<b>Data/Hora</b>', normal), _paragraph(timezone.localtime(avaliacao.data_ciencia_colaborador).strftime('%d/%m/%Y %H:%M') if avaliacao.data_ciencia_colaborador else '-', normal), _paragraph('', normal), _paragraph('', normal)],
     ]
     return _tabela_pdf(linhas, [4.2 * cm, 4.5 * cm, 3.0 * cm, 5.7 * cm], header=False)
@@ -1047,8 +1125,9 @@ def _exportar_avaliacoes_desempenho_csv(avaliacoes):
     writer.writerow([
         'Colaborador', 'Cargo', 'Setor', 'Data Admissao', 'Ano', 'Ciclo', 'Mes Calculado',
         'Periodo', 'Status', 'Media', 'Classificacao', *competencias_csv, 'Comentarios Gerais',
-        'Ciencia Gestor', 'Data Ciencia Gestor', 'Usuario Ciencia Gestor', 'Ciencia Colaborador',
-        'Data Ciencia Colaborador', 'Usuario Ciencia Colaborador', 'Data Avaliacao', 'Avaliado Por',
+        'Ciencia e Concordancia Gestor', 'Data Ciencia e Concordancia Gestor', 'Usuario Ciencia e Concordancia Gestor',
+        'Ciencia e Concordancia Colaborador', 'Data Ciencia e Concordancia Colaborador',
+        'Usuario Ciencia e Concordancia Colaborador', 'Data Avaliacao', 'Avaliado Por',
     ])
 
     for avaliacao in avaliacoes:
@@ -1158,8 +1237,18 @@ def listar_avaliacoes_desempenho(request):
         avaliacao.pode_editar = pode_editar_avaliacao(request.user, avaliacao)
         avaliacao.pode_visualizar_resultado = pode_visualizar_resultado_avaliacao(request.user, avaliacao)
         avaliacao.pode_dar_ciencia_colaborador = (
-            pode_dar_ciencia_colaborador(request.user, avaliacao)
+            avaliacao.avaliado_id == request.user.id
+            and avaliacao.ciencia_gestor
             and not avaliacao.ciencia_colaborador
+        )
+        avaliacao.colaborador_aguardando_ciencia_gestor = (
+            avaliacao.avaliado_id == request.user.id
+            and not avaliacao.ciencia_gestor
+            and not avaliacao.ciencia_colaborador
+        )
+        avaliacao.ciencia_colaborador_registrada_usuario = (
+            avaliacao.avaliado_id == request.user.id
+            and avaliacao.ciencia_colaborador
         )
         avaliacao.pode_dar_ciencia_gestor = (
             pode_dar_ciencia_gestor(request.user, avaliacao)
@@ -1178,7 +1267,7 @@ def listar_avaliacoes_desempenho(request):
         'funcionarios': _funcionarios_avaliacao_queryset(request.user),
         'setores': _opcoes_setores_para_template(request.user),
         'anos': _anos_avaliacoes_desempenho(),
-        'status_choices': AvaliacaoDesempenho.STATUS.choices,
+        'status_choices': _status_choices_avaliacao_interface(),
         'ciclo_choices': AvaliacaoDesempenho.CICLO.choices,
         'filtros': filtros_avaliacoes,
         **filtros_avaliacoes,
@@ -1246,10 +1335,7 @@ def nova_avaliacao_desempenho(request):
 def detalhe_avaliacao_desempenho(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
     if not pode_visualizar_resultado_avaliacao(request.user, avaliacao):
-        messages.warning(
-            request,
-            'O resultado desta avaliação ainda não está disponível. Aguarde a ciência do avaliador.'
-        )
+        messages.error(request, 'Você não possui permissão para visualizar esta avaliação.')
         return redirect('listar_avaliacoes_desempenho')
 
     return render(request, 'rh/detalhe_avaliacao_desempenho.html', {
@@ -1297,10 +1383,7 @@ def editar_avaliacao_desempenho(request, pk):
 def dashboard_avaliacao_desempenho(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
     if not pode_visualizar_resultado_avaliacao(request.user, avaliacao):
-        messages.warning(
-            request,
-            'O resultado desta avaliação ainda não está disponível. Aguarde a ciência do avaliador.'
-        )
+        messages.error(request, 'Você não possui permissão para visualizar esta avaliação.')
         return redirect('listar_avaliacoes_desempenho')
 
     return render(request, 'rh/dashboard_avaliacao_desempenho.html', _dados_dashboard_avaliacao(avaliacao, request.user))
@@ -1311,7 +1394,7 @@ def dashboard_avaliacao_desempenho(request, pk):
 def dar_ciencia_gestor_avaliacao(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
     if not pode_dar_ciencia_gestor(request.user, avaliacao):
-        messages.error(request, 'Voce nao tem permissao para dar ciencia como gestor nesta avaliacao.')
+        messages.error(request, 'Voce nao tem permissao para registrar ciencia e concordancia como gestor nesta avaliacao.')
         return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
 
     avaliacao.ciencia_gestor = True
@@ -1326,7 +1409,7 @@ def dar_ciencia_gestor_avaliacao(request, pk):
         'atualizado_em',
     ])
 
-    messages.success(request, 'Ciencia do gestor registrada com sucesso.')
+    messages.success(request, 'Ciência e concordância do gestor registrada com sucesso.')
     return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
 
 
@@ -1335,20 +1418,20 @@ def dar_ciencia_gestor_avaliacao(request, pk):
 def dar_ciencia_colaborador_avaliacao(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
     if avaliacao.avaliado_id != request.user.id:
-        messages.error(request, 'Voce so pode dar ciencia nas suas proprias avaliacoes.')
-        return redirect('listar_avaliacoes_desempenho')
-
-    if not avaliacao.ciencia_gestor:
-        messages.warning(request, 'Você só poderá dar ciência após a ciência do avaliador.')
-        return redirect('listar_avaliacoes_desempenho')
+        messages.error(request, 'Você só pode registrar ciência e concordância nas suas próprias avaliações.')
+        return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
 
     if avaliacao.ciencia_colaborador:
-        messages.info(request, 'A ciência do colaborador já foi registrada.')
+        messages.info(request, 'Sua ciência e concordância já foi registrada.')
+        return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
+
+    if not avaliacao.ciencia_gestor:
+        messages.warning(request, 'Você só poderá registrar ciência e concordância após a ciência e concordância do gestor.')
         return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
 
     if not pode_dar_ciencia_colaborador(request.user, avaliacao):
-        messages.error(request, 'Voce so pode dar ciencia nas suas proprias avaliacoes.')
-        return redirect('listar_avaliacoes_desempenho')
+        messages.error(request, 'Você só pode registrar ciência e concordância nas suas próprias avaliações.')
+        return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
 
     avaliacao.ciencia_colaborador = True
     avaliacao.data_ciencia_colaborador = timezone.now()
@@ -1362,7 +1445,7 @@ def dar_ciencia_colaborador_avaliacao(request, pk):
         'atualizado_em',
     ])
 
-    messages.success(request, 'Ciencia do colaborador registrada com sucesso.')
+    messages.success(request, 'Ciência e concordância do colaborador registrada com sucesso.')
     return redirect('dashboard_avaliacao_desempenho', pk=avaliacao.pk)
 
 
@@ -1370,10 +1453,7 @@ def dar_ciencia_colaborador_avaliacao(request, pk):
 def exportar_pdf_avaliacao_desempenho(request, pk):
     avaliacao = get_object_or_404(avaliacoes_visiveis_para(request.user), pk=pk)
     if not pode_visualizar_resultado_avaliacao(request.user, avaliacao):
-        messages.warning(
-            request,
-            'O PDF desta avaliação ainda não está disponível. Aguarde a ciência do avaliador.'
-        )
+        messages.error(request, 'Você não possui permissão para visualizar esta avaliação.')
         return redirect('listar_avaliacoes_desempenho')
 
     dados = _dados_dashboard_avaliacao(avaliacao, request.user)
@@ -1415,7 +1495,7 @@ def exportar_pdf_avaliacao_desempenho(request, pk):
     elementos.append(_tabela_pdf(resumo, [3.5 * cm, 5.0 * cm, 3.5 * cm, 5.0 * cm], header=False))
     elementos.append(Spacer(1, 0.4 * cm))
 
-    elementos.append(Paragraph('Ciencia Digital', styles['SecaoAvaliacao']))
+    elementos.append(Paragraph('Ciencia e Concordancia Digital', styles['SecaoAvaliacao']))
     elementos.append(_ciencia_pdf(avaliacao, normal))
     elementos.append(Spacer(1, 0.4 * cm))
 
@@ -1556,7 +1636,7 @@ def dashboard_geral_avaliacoes_desempenho(request):
         'funcionarios': _funcionarios_avaliacao_queryset(request.user),
         'setores': _opcoes_setores_para_template(request.user),
         'anos': _anos_avaliacoes_desempenho(),
-        'status_choices': AvaliacaoDesempenho.STATUS.choices,
+        'status_choices': _status_choices_avaliacao_interface(),
         'ciclo_choices': AvaliacaoDesempenho.CICLO.choices,
         'filtros': request.GET,
         'media_geral': media_geral,
