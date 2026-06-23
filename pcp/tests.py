@@ -14,6 +14,7 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from pcp.forms import PcpPlanoManutencaoForm
 from pcp.models import (
     CategoriaDowntime,
     FinalidadeEvidencia,
@@ -26,8 +27,10 @@ from pcp.models import (
     PcpExecucaoManutencao,
     PcpEvidenciaManutencao,
     PcpEventoAuditoriaManutencao,
+    PcpItemManutencao,
     PcpParametroAlerta,
     PcpPlanoManutencao,
+    PcpPlanoManutencaoItem,
     PcpProgramacaoAlertaManutencao,
     StatusAlerta,
     StatusAtivo,
@@ -319,6 +322,53 @@ class PcpMaintenanceServicesTests(TestCase):
 
         self.assertEqual(corrigida.diagnostico, "Diagnóstico revisado")
         self.assertTrue(corrigida.eventos_auditoria.filter(tipo_evento="corrigida").exists())
+
+
+class PcpPlanoManutencaoFormTests(TestCase):
+    def setUp(self) -> None:
+        self.area = PcpAreaProducao.objects.create(codigo="LINHA-FORM", nome="Linha Form")
+        self.ativo = PcpAtivo.objects.create(codigo="MAQ-FORM", nome="Maquina Form", area=self.area)
+
+    def test_novo_plano_exibe_apenas_tipos_permitidos(self) -> None:
+        form = PcpPlanoManutencaoForm(ativo=self.ativo)
+
+        choices = {valor for valor, _label in form.fields["tipo"].choices}
+
+        self.assertIn(TipoManutencao.PREVENTIVA, choices)
+        self.assertIn(TipoManutencao.CORRETIVA, choices)
+        self.assertNotIn(TipoManutencao.PREDITIVA, choices)
+        self.assertNotIn(TipoManutencao.INSPECAO, choices)
+
+    def test_novo_plano_nao_aceita_tipo_legado_em_post_manual(self) -> None:
+        form = PcpPlanoManutencaoForm(
+            data={
+                "tipo": TipoManutencao.PREDITIVA,
+                "nome": "Plano legado manual",
+                "descricao": "",
+                "intervalo_dias": 30,
+                "data_inicio": "2026-07-01",
+            },
+            ativo=self.ativo,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("tipo", form.errors)
+
+    def test_edicao_de_plano_legado_mantem_tipo_atual_visivel(self) -> None:
+        plano = PcpPlanoManutencao.objects.create(
+            ativo_pcp=self.ativo,
+            nome="Plano legado",
+            tipo=TipoManutencao.INSPECAO,
+            intervalo_dias=30,
+            data_inicio=date(2026, 7, 1),
+        )
+
+        form = PcpPlanoManutencaoForm(instance=plano, ativo=self.ativo)
+        choices = {valor for valor, _label in form.fields["tipo"].choices}
+
+        self.assertIn(TipoManutencao.INSPECAO, choices)
+        self.assertIn(TipoManutencao.PREVENTIVA, choices)
+        self.assertIn(TipoManutencao.CORRETIVA, choices)
 
 
 class PcpEstoqueETLTests(TestCase):
@@ -762,6 +812,62 @@ class PcpAssetViewsTests(TestCase):
         plano.refresh_from_db()
         self.assertRedirects(response, f"/pcp/ativos/{ativo.pk}/")
         self.assertFalse(plano.ativo)
+
+    def test_preview_pdf_plano_retorna_pdf_inline(self) -> None:
+        ativo = AtivoService.criar_ativo(codigo="MAQ-PDF", nome="Maquina PDF")
+        plano = PlanoManutencaoService.criar_plano(
+            ativo_pcp=ativo,
+            nome="Preventiva PDF",
+            data_inicio=date(2026, 7, 1),
+            tipo=TipoManutencao.PREVENTIVA,
+            intervalo_dias=30,
+        )
+        item = PcpItemManutencao.objects.create(
+            ativo_pcp=ativo,
+            descricao="Lubrificacao dos rolamentos",
+        )
+        PcpPlanoManutencaoItem.objects.create(plano=plano, item_manutencao=item, ordem=1)
+        ProgramacaoManutencaoService.gerar_proxima_preventiva(plano=plano)
+
+        response = self.client.get(f"/pcp/planos/{plano.pk}/pdf/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("inline", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_preview_pdf_plano_sem_itens_retorna_pdf_inline(self) -> None:
+        ativo = AtivoService.criar_ativo(codigo="MAQ-PDF-SEM-ITEM", nome="Maquina PDF Sem Item")
+        plano = PlanoManutencaoService.criar_plano(
+            ativo_pcp=ativo,
+            nome="Preventiva PDF Sem Item",
+            data_inicio=date(2026, 7, 1),
+            tipo=TipoManutencao.PREVENTIVA,
+            intervalo_dias=30,
+        )
+
+        response = self.client.get(f"/pcp/planos/{plano.pk}/pdf/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("inline", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_preview_pdf_plano_exige_grupo_pcp(self) -> None:
+        ativo = AtivoService.criar_ativo(codigo="MAQ-PDF-NEGADO", nome="Maquina PDF Negado")
+        plano = PlanoManutencaoService.criar_plano(
+            ativo_pcp=ativo,
+            nome="Preventiva PDF Negado",
+            data_inicio=date(2026, 7, 1),
+            tipo=TipoManutencao.PREVENTIVA,
+            intervalo_dias=30,
+        )
+
+        self.client.force_login(self.user_sem_grupo)
+        response = self.client.get(f"/pcp/planos/{plano.pk}/pdf/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertNotEqual(response.get("Content-Type"), "application/pdf")
 
     def test_agenda_exibe_programacao_no_periodo_correto(self) -> None:
         ativo = AtivoService.criar_ativo(codigo="MAQ-AGENDA", nome="Máquina Agenda")

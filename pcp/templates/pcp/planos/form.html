@@ -10,9 +10,16 @@
             <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">{{ titulo }}</h3>
             <p class="text-muted mb-0">Defina quando a rotina começa e com qual frequência deve ser executada.</p>
         </div>
-        <a href="{% url 'pcp_detalhar_ativo' ativo.id %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Voltar ao ativo
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            {% if plano %}
+                <a href="{% url 'pcp_preview_plano_pdf' plano.id %}" target="_blank" class="btn btn-outline-danger">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>Visualizar PDF
+                </a>
+            {% endif %}
+            <a href="{% url 'pcp_detalhar_ativo' ativo.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Voltar ao ativo
+            </a>
+        </div>
     </div>
 
     <div class="alert alert-primary border-0 shadow-sm rounded-4 mb-4">
@@ -43,6 +50,83 @@
                 </div>
                 {% endfor %}
             </div>
+
+            <hr class="my-4">
+
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+                <div>
+                    <h5 class="fw-bold mb-1" style="color: var(--azul-principal);">Itens de manutenção</h5>
+                    <div class="small text-muted">Selecione os serviços que farão parte do checklist deste plano.</div>
+                </div>
+                <button type="button" class="btn btn-outline-primary" id="adicionar-item-manutencao"{% if not form.itens_manutencao_queryset %} disabled{% endif %}>
+                    <i class="bi bi-plus-lg me-1"></i>Adicionar item de manutenção
+                </button>
+            </div>
+
+            {% if not form.itens_manutencao_queryset %}
+                <div class="alert alert-light border mb-0">
+                    Nenhum item de manutenção cadastrado para este ativo. O plano pode ser salvo sem itens.
+                </div>
+            {% endif %}
+
+            <div id="itens-manutencao-lista" class="d-flex flex-column gap-2">
+                {% if plano and plano.itens_planejados.all %}
+                    {% for item_planejado in plano.itens_planejados.all %}
+                    <div class="row g-2 align-items-start item-manutencao-linha">
+                        <div class="col">
+                            <label class="form-label small fw-semibold mb-1">Item de manutenção</label>
+                            <select name="itens_manutencao" class="form-select item-manutencao-select"{% if not form.itens_manutencao_queryset %} disabled{% endif %}>
+                                <option value="">Selecione um item</option>
+                                {% for item in form.itens_manutencao_queryset %}
+                                    <option value="{{ item.id }}"{% if item.id == item_planejado.item_manutencao_id %} selected{% endif %}>{{ item.descricao }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-auto pt-4">
+                            <button type="button" class="btn btn-outline-danger remover-item-manutencao"{% if forloop.first %} disabled{% endif %}>
+                                <i class="bi bi-trash me-1"></i>Remover
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="row g-2 align-items-start item-manutencao-linha">
+                        <div class="col">
+                            <label class="form-label small fw-semibold mb-1">Item de manutenção</label>
+                            <select name="itens_manutencao" class="form-select item-manutencao-select"{% if not form.itens_manutencao_queryset %} disabled{% endif %}>
+                                <option value="">Selecione um item</option>
+                                {% for item in form.itens_manutencao_queryset %}
+                                    <option value="{{ item.id }}">{{ item.descricao }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-auto pt-4">
+                            <button type="button" class="btn btn-outline-danger remover-item-manutencao" disabled>
+                                <i class="bi bi-trash me-1"></i>Remover
+                            </button>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <template id="item-manutencao-template">
+                <div class="row g-2 align-items-start item-manutencao-linha">
+                    <div class="col">
+                        <label class="form-label small fw-semibold mb-1">Item de manutenção</label>
+                        <select name="itens_manutencao" class="form-select item-manutencao-select">
+                            <option value="">Selecione um item</option>
+                            {% for item in form.itens_manutencao_queryset %}
+                                <option value="{{ item.id }}">{{ item.descricao }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-auto pt-4">
+                        <button type="button" class="btn btn-outline-danger remover-item-manutencao">
+                            <i class="bi bi-trash me-1"></i>Remover
+                        </button>
+                    </div>
+                </div>
+            </template>
         </div>
         <div class="card-footer bg-white border-0 p-4 pt-0 d-flex flex-column-reverse flex-sm-row justify-content-end gap-2">
             <a href="{% url 'pcp_detalhar_ativo' ativo.id %}" class="btn btn-outline-secondary">Cancelar</a>
@@ -52,4 +136,49 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const lista = document.getElementById("itens-manutencao-lista");
+    const botaoAdicionar = document.getElementById("adicionar-item-manutencao");
+    const template = document.getElementById("item-manutencao-template");
+
+    if (!lista || !botaoAdicionar || !template) {
+        return;
+    }
+
+    function atualizarBotoesRemover() {
+        const linhas = lista.querySelectorAll(".item-manutencao-linha");
+        linhas.forEach(function(linha, index) {
+            const botaoRemover = linha.querySelector(".remover-item-manutencao");
+            if (botaoRemover) {
+                botaoRemover.disabled = index === 0;
+            }
+        });
+    }
+
+    botaoAdicionar.addEventListener("click", function() {
+        const novaLinha = template.content.firstElementChild.cloneNode(true);
+        lista.appendChild(novaLinha);
+        atualizarBotoesRemover();
+    });
+
+    lista.addEventListener("click", function(event) {
+        const botaoRemover = event.target.closest(".remover-item-manutencao");
+        if (!botaoRemover || botaoRemover.disabled) {
+            return;
+        }
+        const linha = botaoRemover.closest(".item-manutencao-linha");
+        if (linha) {
+            linha.remove();
+            atualizarBotoesRemover();
+        }
+    });
+
+    atualizarBotoesRemover();
+});
+</script>
 {% endblock %}

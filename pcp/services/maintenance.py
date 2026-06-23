@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -13,7 +14,9 @@ from pcp.models import (
     PcpAtivo,
     PcpDowntime,
     PcpExecucaoManutencao,
+    PcpItemManutencao,
     PcpPlanoManutencao,
+    PcpPlanoManutencaoItem,
     PcpProgramacaoManutencao,
     StatusManutencao,
     StatusAtivo,
@@ -46,6 +49,7 @@ class PlanoManutencaoService:
         tipo: str = TipoManutencao.PREVENTIVA,
         descricao: str = "",
         intervalo_dias: int | None = None,
+        itens_manutencao: Iterable[PcpItemManutencao] | None = None,
     ) -> PcpPlanoManutencao:
         PlanoManutencaoService._validar_intervalo(intervalo_dias=intervalo_dias)
         if not nome.strip():
@@ -54,7 +58,7 @@ class PlanoManutencaoService:
             raise PcpValidationError("Não é permitido criar plano para ativo inativo.")
 
         with transaction.atomic():
-            return PcpPlanoManutencao.objects.create(
+            plano = PcpPlanoManutencao.objects.create(
                 ativo_pcp=ativo_pcp,
                 nome=nome.strip(),
                 tipo=tipo,
@@ -62,6 +66,12 @@ class PlanoManutencaoService:
                 intervalo_dias=intervalo_dias,
                 data_inicio=data_inicio,
             )
+            if itens_manutencao is not None:
+                PlanoManutencaoService._sincronizar_itens_manutencao(
+                    plano=plano,
+                    itens_manutencao=itens_manutencao,
+                )
+            return plano
 
     @staticmethod
     def atualizar_plano(
@@ -72,6 +82,7 @@ class PlanoManutencaoService:
         tipo: str = TipoManutencao.PREVENTIVA,
         descricao: str = "",
         intervalo_dias: int | None = None,
+        itens_manutencao: Iterable[PcpItemManutencao] | None = None,
     ) -> PcpPlanoManutencao:
         PlanoManutencaoService._validar_intervalo(intervalo_dias=intervalo_dias)
         if not nome.strip():
@@ -91,6 +102,11 @@ class PlanoManutencaoService:
             plano.save(
                 update_fields=["nome", "tipo", "descricao", "intervalo_dias", "data_inicio", "updated_at"]
             )
+            if itens_manutencao is not None:
+                PlanoManutencaoService._sincronizar_itens_manutencao(
+                    plano=plano,
+                    itens_manutencao=itens_manutencao,
+                )
             return plano
 
     @staticmethod
@@ -112,6 +128,44 @@ class PlanoManutencaoService:
     def _validar_intervalo(*, intervalo_dias: int | None) -> None:
         if intervalo_dias is None or intervalo_dias <= 0:
             raise PcpValidationError("O intervalo de dias deve ser maior que zero.")
+
+    @staticmethod
+    def _sincronizar_itens_manutencao(
+        *,
+        plano: PcpPlanoManutencao,
+        itens_manutencao: Iterable[PcpItemManutencao],
+    ) -> None:
+        itens = list(itens_manutencao)
+        item_ids = [item.pk for item in itens]
+        if len(item_ids) != len(set(item_ids)):
+            raise PcpValidationError("O mesmo item de manutenção não pode ser associado duas vezes ao plano.")
+
+        if not item_ids:
+            PcpPlanoManutencaoItem.objects.filter(plano=plano).delete()
+            return
+
+        itens_validos = {
+            item.pk: item
+            for item in PcpItemManutencao.objects.select_for_update().filter(
+                pk__in=item_ids,
+                ativo=True,
+                ativo_pcp=plano.ativo_pcp,
+            )
+        }
+        if len(itens_validos) != len(item_ids):
+            raise PcpValidationError("Selecione apenas itens de manutenção ativos e vinculados ao ativo do plano.")
+
+        PcpPlanoManutencaoItem.objects.filter(plano=plano).delete()
+        PcpPlanoManutencaoItem.objects.bulk_create(
+            [
+                PcpPlanoManutencaoItem(
+                    plano=plano,
+                    item_manutencao=itens_validos[item_id],
+                    ordem=ordem,
+                )
+                for ordem, item_id in enumerate(item_ids, start=1)
+            ]
+        )
 
 
 class ProgramacaoManutencaoService:

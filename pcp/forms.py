@@ -7,6 +7,7 @@ from django import forms
 from pcp.models import (
     CategoriaDowntime,
     PcpAtivo,
+    PcpItemManutencao,
     PcpPlanoManutencao,
     PcpProgramacaoManutencao,
     StatusManutencao,
@@ -14,6 +15,11 @@ from pcp.models import (
     TipoManutencao,
 )
 
+
+TIPOS_PLANO_NOVO = (
+    (TipoManutencao.PREVENTIVA, TipoManutencao.PREVENTIVA.label),
+    (TipoManutencao.CORRETIVA, TipoManutencao.CORRETIVA.label),
+)
 
 TIPOS_PARADA_AGRUPADOS = (
     (
@@ -59,6 +65,8 @@ class PcpAtivoForm(BootstrapFormMixin, forms.ModelForm):
 
 
 class PcpPlanoManutencaoForm(BootstrapFormMixin, forms.ModelForm):
+    itens_manutencao_field_name = "itens_manutencao"
+
     class Meta:
         model = PcpPlanoManutencao
         fields = ["nome", "tipo", "data_inicio", "intervalo_dias", "descricao"]
@@ -67,9 +75,68 @@ class PcpPlanoManutencaoForm(BootstrapFormMixin, forms.ModelForm):
             "data_inicio": forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
         }
 
-    def __init__(self, *args: object, **kwargs: object) -> None:
+    def __init__(self, *args: Any, ativo: PcpAtivo | None = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        self.ativo_pcp = ativo or self._ativo_da_instancia()
+        self.itens_manutencao_queryset = self._itens_manutencao_queryset()
+        self.itens_manutencao_selecionados: list[PcpItemManutencao] = []
+        self._aplicar_choices_tipo()
         self.aplicar_bootstrap()
+
+    def clean(self) -> dict[str, Any]:
+        cleaned_data = super().clean()
+        self.itens_manutencao_selecionados = self._clean_itens_manutencao()
+        return cleaned_data
+
+    def _ativo_da_instancia(self) -> PcpAtivo | None:
+        if self.instance and self.instance.pk:
+            return self.instance.ativo_pcp
+        return None
+
+    def _itens_manutencao_queryset(self) -> Any:
+        if not self.ativo_pcp:
+            return PcpItemManutencao.objects.none()
+        return PcpItemManutencao.objects.filter(ativo_pcp=self.ativo_pcp, ativo=True).order_by("descricao", "id")
+
+    def _aplicar_choices_tipo(self) -> None:
+        choices = list(TIPOS_PLANO_NOVO)
+        tipo_atual = self.instance.tipo if self.instance and self.instance.pk else None
+        tipos_permitidos = {valor for valor, _label in TIPOS_PLANO_NOVO}
+        if tipo_atual and tipo_atual not in tipos_permitidos:
+            try:
+                label = TipoManutencao(tipo_atual).label
+            except ValueError:
+                label = tipo_atual
+            choices.append((tipo_atual, label))
+        self.fields["tipo"].choices = choices
+
+    def _clean_itens_manutencao(self) -> list[PcpItemManutencao]:
+        if not self.is_bound or not hasattr(self.data, "getlist"):
+            return []
+
+        raw_values = [
+            value.strip()
+            for value in self.data.getlist(self.itens_manutencao_field_name)
+            if value and value.strip()
+        ]
+        if not raw_values:
+            return []
+
+        if len(raw_values) != len(set(raw_values)):
+            raise forms.ValidationError("O mesmo item de manutenção não pode ser associado duas vezes ao plano.")
+
+        if not self.ativo_pcp:
+            raise forms.ValidationError("Não foi possível validar os itens de manutenção do ativo.")
+
+        try:
+            item_ids = [int(value) for value in raw_values]
+        except ValueError as exc:
+            raise forms.ValidationError("Selecione apenas itens de manutenção válidos.") from exc
+
+        itens = {item.pk: item for item in self.itens_manutencao_queryset.filter(pk__in=item_ids)}
+        if len(itens) != len(item_ids):
+            raise forms.ValidationError("Selecione apenas itens de manutenção ativos e vinculados ao ativo do plano.")
+        return [itens[item_id] for item_id in item_ids]
 
 
 class PcpEvidenciaManutencaoForm(BootstrapFormMixin, forms.Form):

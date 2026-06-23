@@ -16,6 +16,7 @@ urlpatterns = [
     path("ativos/<int:ativo_id>/desativar/", views.desativar_ativo, name="pcp_desativar_ativo"),
     path("ativos/<int:ativo_id>/planos/novo/", views.criar_plano, name="pcp_criar_plano"),
     path("ativos/<int:ativo_id>/paradas/nova/", views.abrir_parada, name="pcp_abrir_parada"),
+    path("planos/<int:plano_id>/pdf/", views.preview_plano_pdf, name="pcp_preview_plano_pdf"),
     path("planos/<int:plano_id>/editar/", views.editar_plano, name="pcp_editar_plano"),
     path("planos/<int:plano_id>/desativar/", views.desativar_plano, name="pcp_desativar_plano"),
     path("paradas/<int:downtime_id>/encerrar/", views.fechar_parada, name="pcp_fechar_parada"),

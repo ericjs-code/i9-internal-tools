@@ -13,8 +13,10 @@ from .models import (
     PcpEvidenciaManutencao,
     PcpEventoAuditoriaManutencao,
     PcpExecucaoManutencao,
+    PcpItemManutencao,
     PcpParametroAlerta,
     PcpPlanoManutencao,
+    PcpPlanoManutencaoItem,
     PcpProgramacaoManutencao,
     PcpProgramacaoAlertaManutencao,
 )
@@ -46,12 +48,40 @@ class PcpAtivoAdmin(admin.ModelAdmin):
     autocomplete_fields = ("area",)
 
 
+class PcpPlanoManutencaoItemInline(admin.TabularInline):
+    model = PcpPlanoManutencaoItem
+    extra = 0
+    autocomplete_fields = ("item_manutencao",)
+    fields = ("ordem", "item_manutencao")
+
+
+@admin.register(PcpItemManutencao)
+class PcpItemManutencaoAdmin(admin.ModelAdmin):
+    list_display = ("ativo_pcp", "descricao_resumida", "ativo", "updated_at")
+    list_filter = ("ativo", "ativo_pcp")
+    search_fields = ("descricao", "ativo_pcp__codigo", "ativo_pcp__nome")
+    autocomplete_fields = ("ativo_pcp",)
+
+    @admin.display(description="Descrição")
+    def descricao_resumida(self, obj: PcpItemManutencao) -> str:
+        return obj.descricao[:120]
+
+
 @admin.register(PcpPlanoManutencao)
 class PcpPlanoManutencaoAdmin(admin.ModelAdmin):
     list_display = ("nome", "ativo_pcp", "tipo", "intervalo_dias", "ativo")
     list_filter = ("tipo", "ativo")
     search_fields = ("nome", "ativo_pcp__codigo", "ativo_pcp__nome")
     autocomplete_fields = ("ativo_pcp",)
+    inlines = (PcpPlanoManutencaoItemInline,)
+
+
+@admin.register(PcpPlanoManutencaoItem)
+class PcpPlanoManutencaoItemAdmin(admin.ModelAdmin):
+    list_display = ("plano", "ordem", "item_manutencao")
+    list_filter = ("plano__ativo_pcp",)
+    search_fields = ("plano__nome", "plano__ativo_pcp__codigo", "item_manutencao__descricao")
+    autocomplete_fields = ("plano", "item_manutencao")
 
 
 @admin.register(PcpProgramacaoManutencao)

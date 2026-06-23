@@ -297,6 +297,35 @@ class PcpAtivo(SoftDeleteModel):
         return f"{self.codigo} - {self.nome}"
 
 
+class PcpItemManutencao(SoftDeleteModel):
+    ativo_pcp = models.ForeignKey(
+        PcpAtivo,
+        on_delete=models.PROTECT,
+        related_name="itens_manutencao",
+        db_index=True,
+        verbose_name="Ativo",
+    )
+    descricao = models.TextField(verbose_name="Descrição")
+
+    class Meta:
+        verbose_name = "Item de Manutenção"
+        verbose_name_plural = "Itens de Manutenção"
+        db_table = "pcp_item_manutencao"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ativo_pcp", "descricao"],
+                condition=models.Q(ativo=True),
+                name="pcp_item_manutencao_ativo_desc_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["ativo_pcp", "ativo"], name="pcp_item_ativo_flag_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ativo_pcp.codigo} - {self.descricao[:80]}"
+
+
 class PcpPlanoManutencao(SoftDeleteModel):
     ativo_pcp = models.ForeignKey(
         PcpAtivo,
@@ -316,6 +345,13 @@ class PcpPlanoManutencao(SoftDeleteModel):
     descricao = models.TextField(blank=True, verbose_name="Descrição")
     intervalo_dias = models.PositiveIntegerField(null=True, blank=True, verbose_name="Intervalo em dias")
     data_inicio = models.DateField(db_index=True, verbose_name="Data de início")
+    itens_manutencao = models.ManyToManyField(
+        PcpItemManutencao,
+        through="PcpPlanoManutencaoItem",
+        related_name="planos_manutencao",
+        blank=True,
+        verbose_name="Itens de manutenção",
+    )
 
     class Meta:
         verbose_name = "Plano de Manutenção"
@@ -334,6 +370,49 @@ class PcpPlanoManutencao(SoftDeleteModel):
 
     def __str__(self) -> str:
         return f"{self.ativo_pcp.codigo} - {self.nome}"
+
+
+class PcpPlanoManutencaoItem(models.Model):
+    plano = models.ForeignKey(
+        PcpPlanoManutencao,
+        on_delete=models.CASCADE,
+        related_name="itens_planejados",
+        db_index=True,
+        verbose_name="Plano",
+    )
+    item_manutencao = models.ForeignKey(
+        PcpItemManutencao,
+        on_delete=models.PROTECT,
+        related_name="vinculos_planos",
+        db_index=True,
+        verbose_name="Item de manutenção",
+    )
+    ordem = models.PositiveIntegerField(default=1, verbose_name="Ordem")
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+
+    class Meta:
+        verbose_name = "Item do Plano de Manutenção"
+        verbose_name_plural = "Itens dos Planos de Manutenção"
+        db_table = "pcp_plano_manutencao_item"
+        ordering = ["ordem", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plano", "item_manutencao"],
+                name="pcp_plano_item_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["plano", "ordem"],
+                name="pcp_plano_item_ordem_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["plano", "ordem"], name="pcp_plano_item_ordem_idx"),
+            models.Index(fields=["item_manutencao"], name="pcp_plano_item_item_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.plano} - {self.ordem}. {self.item_manutencao.descricao[:80]}"
 
 
 class PcpProgramacaoManutencao(SoftDeleteModel):

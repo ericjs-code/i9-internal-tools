@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.uploadedfile import UploadedFile
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import FileResponse, HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -30,6 +30,7 @@ from pcp.models import (
     PcpEvidenciaManutencao,
     PcpExecucaoManutencao,
     PcpPlanoManutencao,
+    PcpPlanoManutencaoItem,
 )
 from pcp.selectors import (
     PcpDashboardSelector,
@@ -47,6 +48,7 @@ from pcp.services import (
     ProgramacaoManutencaoService,
 )
 from pcp.services.exceptions import PcpConflictError, PcpValidationError
+from pcp.services.pdf import PcpPlanoManutencaoPDFService
 
 
 @login_required(login_url="/login/")
@@ -156,10 +158,19 @@ def detalhar_ativo(request: HttpRequest, ativo_id: int) -> HttpResponse:
 @group_required(["PCP"])
 def criar_plano(request: HttpRequest, ativo_id: int) -> HttpResponse:
     ativo = get_object_or_404(PcpAtivo, pk=ativo_id)
-    form = PcpPlanoManutencaoForm(request.POST or None)
+    form = PcpPlanoManutencaoForm(request.POST or None, ativo=ativo)
     if request.method == "POST" and form.is_valid():
         try:
-            plano = PlanoManutencaoService.criar_plano(ativo_pcp=ativo, **form.cleaned_data)
+            itens_manutencao = (
+                form.itens_manutencao_selecionados
+                if PcpPlanoManutencaoForm.itens_manutencao_field_name in request.POST
+                else None
+            )
+            plano = PlanoManutencaoService.criar_plano(
+                ativo_pcp=ativo,
+                itens_manutencao=itens_manutencao,
+                **form.cleaned_data,
+            )
             _sincronizar_preventiva_visual(plano=plano)
         except (PcpConflictError, PcpValidationError) as exc:
             form.add_error(None, str(exc))
@@ -177,10 +188,19 @@ def criar_plano(request: HttpRequest, ativo_id: int) -> HttpResponse:
 @group_required(["PCP"])
 def editar_plano(request: HttpRequest, plano_id: int) -> HttpResponse:
     plano = get_object_or_404(PcpPlanoManutencao.objects.select_related("ativo_pcp"), pk=plano_id)
-    form = PcpPlanoManutencaoForm(request.POST or None, instance=plano)
+    form = PcpPlanoManutencaoForm(request.POST or None, instance=plano, ativo=plano.ativo_pcp)
     if request.method == "POST" and form.is_valid():
         try:
-            plano = PlanoManutencaoService.atualizar_plano(plano=plano, **form.cleaned_data)
+            itens_manutencao = (
+                form.itens_manutencao_selecionados
+                if PcpPlanoManutencaoForm.itens_manutencao_field_name in request.POST
+                else None
+            )
+            plano = PlanoManutencaoService.atualizar_plano(
+                plano=plano,
+                itens_manutencao=itens_manutencao,
+                **form.cleaned_data,
+            )
             _sincronizar_preventiva_visual(plano=plano)
         except (PcpConflictError, PcpValidationError) as exc:
             form.add_error(None, str(exc))
@@ -192,6 +212,20 @@ def editar_plano(request: HttpRequest, plano_id: int) -> HttpResponse:
         "pcp/planos/form.html",
         {"form": form, "titulo": f"Editar plano - {plano.ativo_pcp.codigo}", "ativo": plano.ativo_pcp, "plano": plano},
     )
+
+
+@login_required(login_url="/login/")
+@group_required(["PCP"])
+def preview_plano_pdf(request: HttpRequest, plano_id: int) -> HttpResponse:
+    itens_planejados = PcpPlanoManutencaoItem.objects.select_related("item_manutencao").order_by("ordem", "id")
+    plano = get_object_or_404(
+        PcpPlanoManutencao.objects.select_related("ativo_pcp").prefetch_related(
+            "programacoes",
+            Prefetch("itens_planejados", queryset=itens_planejados),
+        ),
+        pk=plano_id,
+    )
+    return PcpPlanoManutencaoPDFService.gerar_response(plano=plano, emissor=request.user)
 
 
 @login_required(login_url="/login/")

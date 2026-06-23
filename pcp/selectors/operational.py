@@ -13,6 +13,7 @@ from pcp.models import (
     PcpExecucaoManutencao,
     PcpEventoAuditoriaManutencao,
     PcpPlanoManutencao,
+    PcpPlanoManutencaoItem,
     PcpProgramacaoManutencao,
     StatusManutencao,
 )
@@ -32,8 +33,10 @@ def ativos() -> QuerySet[PcpAtivo]:
 
 def ativo_detalhado(*, ativo_id: int) -> PcpAtivo:
     programacoes = PcpProgramacaoManutencao.objects.order_by("data_prevista", "id")
+    itens_planejados = PcpPlanoManutencaoItem.objects.select_related("item_manutencao").order_by("ordem", "id")
     planos = PcpPlanoManutencao.objects.prefetch_related(
         Prefetch("programacoes", queryset=programacoes),
+        Prefetch("itens_planejados", queryset=itens_planejados),
     ).order_by("nome", "id")
     execucoes = PcpExecucaoManutencao.objects.select_related(
         "programacao__plano",

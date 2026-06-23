@@ -147,6 +147,7 @@
                             {% endfor %}
                         </td>
                         <td class="text-end px-4 text-nowrap">
+                            <a href="{% url 'pcp_preview_plano_pdf' plano.id %}" target="_blank" class="btn btn-sm btn-outline-danger">PDF</a>
                             <a href="{% url 'pcp_editar_plano' plano.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
                             <form method="post" action="{% url 'pcp_desativar_plano' plano.id %}" class="d-inline" onsubmit="return confirm('Confirma a desativação deste plano? A programação pendente também será cancelada.');">
                                 {% csrf_token %}
