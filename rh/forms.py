@@ -7,8 +7,10 @@ from django.forms import inlineformset_factory
 from phonenumber_field.formfields import PhoneNumberField
 from core.services.permissoes_organizacionais import usuarios_avaliaveis_para
 from .constants import (
+    ESTRANGEIRO_NASCIMENTO_VALUE,
     GRAU_PARENTESCO_CONTATO_CHOICES,
     GRAU_PARENTESCO_DEPENDENTE_CHOICES,
+    NATURALIDADE_ESTRANGEIRO,
     ORGAOS_EXPEDIDORES_RG,
     get_municipios_brasileiros_choices,
 )
@@ -236,7 +238,11 @@ class FormularioAdmissionalRespostaForm(forms.ModelForm):
         self.fields['estado_cnh'].required = False
         self.fields['orgao_expedidor'].choices = [('', 'Selecione')] + list(ORGAOS_EXPEDIDORES_RG)
         self.fields['naturalidade'].widget = forms.Select(
-            choices=[('', 'Selecione')] + list(get_municipios_brasileiros_choices()),
+            choices=[
+                ('', 'Selecione'),
+                (NATURALIDADE_ESTRANGEIRO, NATURALIDADE_ESTRANGEIRO),
+                *get_municipios_brasileiros_choices(),
+            ],
             attrs={'class': 'form-select'}
         )
 
@@ -369,6 +375,7 @@ class FormularioAdmissionalRespostaForm(forms.ModelForm):
         trajeto_vale_transporte = cleaned_data.get('trajeto_vale_transporte')
         telefone_principal = cleaned_data.get('telefone_principal')
         contato_recado = cleaned_data.get('contato_recado')
+        estado_nascimento = cleaned_data.get('estado_nascimento')
 
         if utiliza_vale_transporte == 'SIM' and not trajeto_vale_transporte:
             self.add_error('trajeto_vale_transporte', 'Informe o trajeto caso utilize vale transporte.')
@@ -378,6 +385,9 @@ class FormularioAdmissionalRespostaForm(forms.ModelForm):
 
         if telefone_principal and contato_recado and telefone_principal.as_e164 == contato_recado.as_e164:
             self.add_error('contato_recado', 'O telefone para recado n?o pode ser igual ao telefone principal.')
+
+        if estado_nascimento == ESTRANGEIRO_NASCIMENTO_VALUE:
+            cleaned_data['naturalidade'] = NATURALIDADE_ESTRANGEIRO
 
         return cleaned_data
 

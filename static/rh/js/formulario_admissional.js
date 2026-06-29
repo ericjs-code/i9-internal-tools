@@ -90,9 +90,41 @@
         });
     }
 
+    function applyForeignBirthState() {
+        const estadoNascimento = document.querySelector('[name="estado_nascimento"]');
+        const naturalidade = document.querySelector('[name="naturalidade"]');
+        if (!estadoNascimento || !naturalidade) return;
+
+        if (!naturalidade.dataset.originalOptions) {
+            naturalidade.dataset.originalOptions = naturalidade.innerHTML;
+        }
+
+        if (estadoNascimento.value === 'EX') {
+            naturalidade.innerHTML = '<option value="ESTRANGEIRO" selected>ESTRANGEIRO</option>';
+            naturalidade.value = 'ESTRANGEIRO';
+            return;
+        }
+
+        if (naturalidade.innerHTML !== naturalidade.dataset.originalOptions) {
+            naturalidade.innerHTML = naturalidade.dataset.originalOptions;
+            if (naturalidade.value === 'ESTRANGEIRO') {
+                naturalidade.value = '';
+            }
+        }
+    }
+
+    function bindBirthState() {
+        const estadoNascimento = document.querySelector('[name="estado_nascimento"]');
+        if (!estadoNascimento || estadoNascimento.dataset.birthStateBound === 'true') return;
+        estadoNascimento.dataset.birthStateBound = 'true';
+        estadoNascimento.addEventListener('change', applyForeignBirthState);
+        applyForeignBirthState();
+    }
+
     window.inicializarFormularioAdmissional = function (context) {
         bindOnlyDigits(context || document);
         bindPhones();
+        bindBirthState();
     };
 
     document.addEventListener('DOMContentLoaded', function () {

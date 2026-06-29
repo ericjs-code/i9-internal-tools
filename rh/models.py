@@ -8,6 +8,7 @@ from .constants import (
     GRAU_PARENTESCO_DEPENDENTE_CHOICES,
     ORGAOS_EXPEDIDORES_RG,
     UF_CHOICES,
+    UF_NASCIMENTO_CHOICES,
 )
 import uuid
 import os
@@ -295,7 +296,7 @@ class FormularioAdmissional(models.Model):
     email = models.EmailField(blank=True, null=True)
 
     data_nascimento = models.DateField(blank=True, null=True)
-    estado_nascimento = models.CharField(max_length=2, choices=UF_CHOICES, blank=True, null=True)
+    estado_nascimento = models.CharField(max_length=2, choices=UF_NASCIMENTO_CHOICES, blank=True, null=True)
     naturalidade = models.CharField(max_length=120, blank=True, null=True, help_text="Cidade onde nasceu")
     cor_raca = models.CharField(max_length=20, choices=COR_RACA_CHOICES, blank=True, null=True)
     grau_instrucao = models.CharField(max_length=30, choices=GRAU_INSTRUCAO_CHOICES, blank=True, null=True)

@@ -465,7 +465,7 @@ def listar_formularios_admissionais(request):
                 formulario.get_grau_parentesco_contato_recado_display() if formulario.grau_parentesco_contato_recado else '',
                 formulario.email,
                 formulario.data_nascimento.strftime('%d/%m/%Y') if formulario.data_nascimento else '',
-                formulario.estado_nascimento,
+                formulario.get_estado_nascimento_display() if formulario.estado_nascimento else '',
                 formulario.naturalidade,
                 formulario.get_cor_raca_display() if formulario.cor_raca else '',
                 formulario.get_grau_instrucao_display() if formulario.grau_instrucao else '',
@@ -624,7 +624,7 @@ def exportar_formulario_admissional_pdf(request, uuid_formulario):
     ])
     add_section('Dados Pessoais', [
         ('Data de nascimento', data(formulario.data_nascimento)),
-        ('Estado nascimento', formulario.estado_nascimento),
+        ('Estado nascimento', formulario.get_estado_nascimento_display() if formulario.estado_nascimento else ''),
         ('Naturalidade', formulario.naturalidade),
         ('Cor/Raça', formulario.get_cor_raca_display() if formulario.cor_raca else ''),
         ('Grau de instrução', formulario.get_grau_instrucao_display() if formulario.grau_instrucao else ''),

@@ -60,7 +60,7 @@
             <div class="card border-0 shadow-sm rounded-3 h-100"><div class="card-body">
                 <h5 class="fw-bold border-bottom pb-2 mb-3">Dados Pessoais</h5>
                 <p><strong>Data nascimento:</strong> {{ formulario.data_nascimento|date:"d/m/Y"|default:"-" }}</p>
-                <p><strong>Estado nascimento:</strong> {{ formulario.estado_nascimento|default:"-" }}</p>
+                <p><strong>Estado nascimento:</strong> {{ formulario.get_estado_nascimento_display|default:"-" }}</p>
                 <p><strong>Naturalidade:</strong> {{ formulario.naturalidade|default:"-" }}</p>
                 <p><strong>Cor/Raca:</strong> {{ formulario.get_cor_raca_display|default:"-" }}</p>
                 <p><strong>Grau instrucao:</strong> {{ formulario.get_grau_instrucao_display|default:"-" }}</p>
