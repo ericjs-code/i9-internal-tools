@@ -1,147 +1,355 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Dashboard Compras - I9TMG{% endblock %}
+{% block title %}Dashboard Financeiro PMS - I9TMG{% endblock %}
 
 {% block content %}
 <style>
-    .kpi-card { border: none; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: transform 0.2s; }
-    .kpi-card:hover { transform: translateY(-5px); }
-    .kpi-title { font-size: 0.85rem; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
-    .kpi-value { font-size: 1.8rem; font-weight: 700; color: var(--azul-principal); }
-    .chart-container { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); height: 350px; position: relative;}
-    .filter-card { background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .kpi-card { border: none; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .kpi-title { font-size: 0.8rem; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 0.4px; }
+    .kpi-value { font-size: 1.55rem; font-weight: 800; color: var(--azul-principal); }
+    .filter-card, .table-container, .chart-card { background: #fff; border-radius: 10px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .chart-card { height: 380px; }
+    .chart-wrapper { position: relative; height: 300px; max-height: 300px; }
+    .chart-wrapper canvas { display: block; width: 100% !important; height: 100% !important; max-height: 300px; }
+    .hierarchy-row-edt { background: #f8f9fa; font-weight: 700; }
+    .hierarchy-code { font-family: monospace; white-space: nowrap; }
+    .hierarchy-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding-left: calc(var(--tree-level, 0) * 1.25rem);
+    }
+    .sync-status { font-size: 0.85rem; }
+    .tree-toggle-row { cursor: pointer; }
+    .transition-transform { transition: transform 0.2s ease-in-out; }
+    .tree-task-row { background: #fff; }
 </style>
 
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3 class="fw-bold" style="color: var(--azul-principal);">
-            <i class="bi bi-graph-up-arrow me-2"></i> Inteligência de Compras
-        </h3>
+    <div class="d-flex justify-content-between align-items-start mb-3">
         <div>
-            <button class="btn btn-primary btn-sync-global"
-                data-url="{% url 'atualizar_dados_dw' %}"
-                data-check-url="{% url 'checar_status_task_global' task_id='TASK_ID_PLACEHOLDER' %}"
-                data-csrf="{{ csrf_token }}">
-                <i class="bi bi-arrow-clockwise me-2"></i> Sincronizar
-            </button>
+            <h3 class="fw-bold mb-1" style="color: var(--azul-principal);">
+                <i class="bi bi-diagram-3 me-2"></i> Dashboard Financeiro PMS
+            </h3>
+            <div class="text-muted">
+                Custo vs. empenho por Projeto &gt; EDT/WBS &gt; Tarefa
+            </div>
+        </div>
+        <div class="text-end">
+            {% if request.user.is_staff %}
+                <button class="btn btn-primary btn-sync-global"
+                    data-url="{% url 'atualizar_dados_pms' %}"
+                    data-check-url="{% url 'checar_status_task_global' task_id='TASK_ID_PLACEHOLDER' %}"
+                    data-csrf="{{ csrf_token }}">
+                    <i class="bi bi-arrow-clockwise me-2"></i> Sincronizar PMS
+                </button>
+            {% endif %}
+            <div class="sync-status text-muted mt-2">
+                {% if ultima_sincronizacao %}
+                    Última carga: {{ ultima_sincronizacao.iniciado_em|date:"d/m/Y H:i" }}
+                    <span class="badge {% if ultima_sincronizacao.status == 'SUCESSO' %}bg-success{% elif ultima_sincronizacao.status == 'ERRO' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                        {{ ultima_sincronizacao.get_status_display }}
+                    </span>
+                {% else %}
+                    Nenhuma carga PMS registrada.
+                {% endif %}
+            </div>
         </div>
     </div>
 
-    <div class="filter-card">
-        <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Data Início</label>
-                <input type="date" name="data_inicio" class="form-control form-control-sm" value="{{ filtros.data_inicio }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Data Fim</label>
-                <input type="date" name="data_fim" class="form-control form-control-sm" value="{{ filtros.data_fim }}">
-            </div>
-            <div class="col-md-2">
+    <div class="filter-card mb-4">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-6">
                 <label class="form-label small fw-bold">Projeto</label>
                 <select name="projeto" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="">Todos os Projetos</option>
-                    {% for proj in lista_projetos %}
-                        <option value="{{ proj }}" {% if filtros.projeto == proj %}selected{% endif %}>{{ proj }}</option>
+                    <option value="">Todos os projetos</option>
+                    {% for projeto in lista_projetos %}
+                        <option value="{{ projeto }}" {% if filtros.projeto == projeto %}selected{% endif %}>{{ projeto }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Tarefa</label>
-                <select name="tarefa" class="form-select form-select-sm">
-                    <option value="">Todas as Tarefas</option>
-                    {% for tar in lista_tarefas %}
-                        <option value="{{ tar }}" {% if filtros.tarefa == tar %}selected{% endif %}>{{ tar }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">Fornecedor</label>
-                <select name="nome_fornecedor" class="form-select form-select-sm">
-                    <option value="">Todas os Fornecedores</option>
-                    {% for tar in lista_fornecedor %}
-                        <option value="{{ tar }}" {% if filtros.fornecedor == tar %}selected{% endif %}>{{ tar }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-auto d-flex gap-2 ms-auto">
+            <div class="col-md-auto ms-auto d-flex gap-2">
                 <button type="submit" class="btn btn-sm btn-primary px-3">
                     <i class="bi bi-funnel me-1"></i> Filtrar
                 </button>
                 <a href="{% url 'dashboard_compras' %}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-eraser me-1"></i> Limpar
                 </a>
-                <button type="submit" name="export_csv" value="1" class="btn btn-sm btn-success">
-                    <i class="bi bi-file-earmark-excel me-1"></i> Exportar Base
-                </button>
             </div>
         </form>
     </div>
 
+    {% if ultima_sincronizacao and ultima_sincronizacao.status == 'ERRO' %}
+        <div class="alert alert-danger border d-flex align-items-start gap-2">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <div>
+                <div class="fw-bold">A última sincronização PMS falhou.</div>
+                <div class="small">{{ ultima_sincronizacao.erro|default:"Erro não informado no log de sincronização." }}</div>
+            </div>
+        </div>
+    {% elif not ultima_sincronizacao %}
+        <div class="alert alert-warning border d-flex align-items-start gap-2">
+            <i class="bi bi-info-circle-fill"></i>
+            <div>
+                <div class="fw-bold">Nenhuma sincronização PMS registrada.</div>
+                <div class="small">Execute a sincronização após validar os arquivos PMS no spool.</div>
+            </div>
+        </div>
+    {% elif not modo_carteira and not linhas_hierarquia %}
+        <div class="alert alert-info border d-flex align-items-start gap-2">
+            <i class="bi bi-info-circle-fill"></i>
+            <div>
+                <div class="fw-bold">A sincronização PMS foi concluída, mas não há estrutura para exibir.</div>
+                <div class="small">Verifique se o projeto/revisão selecionado possui EDTs e tarefas no PMS.</div>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if projeto_atual %}
+        <div class="alert alert-light border d-flex justify-content-between align-items-center">
+            <div>
+                <strong>{{ projeto_atual.projeto }}</strong> - {{ projeto_atual.descricao|default:"Sem descrição" }}
+            </div>
+        </div>
+    {% endif %}
+
     <div class="row g-4 mb-4">
-        <div class="col-md-3">
-            <div class="card kpi-card h-100 p-3 border-start border-4 border-success">
-                <div class="kpi-title mb-1">Custo Total (Pedidos)</div>
-                <div class="kpi-value">R$ {{ spend_total|floatformat:2 }}</div>
-                <div class="small text-muted mt-2"><i class="bi bi-cash-coin me-1"></i>Volume financeiro efetivado</div>
-            </div>
-        </div>
-        <div class="col-md-3">
+        <div class="col-md">
             <div class="card kpi-card h-100 p-3 border-start border-4 border-primary">
-                <div class="kpi-title mb-1">Lead Time Compras</div>
-                <div class="kpi-value">{{ lead_time_compras }} <span class="fs-6 text-muted fw-normal">dias</span></div>
-                <div class="small text-muted mt-2"><i class="bi bi-stopwatch me-1"></i>Tempo médio para emissão</div>
+                <div class="kpi-title mb-1">Custo</div>
+                <div class="kpi-value">R$ {{ kpis.custo|floatformat:2 }}</div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-warning">
+                <div class="kpi-title mb-1">Empenhado</div>
+                <div class="kpi-value">R$ {{ kpis.empenhado|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-info">
+                <div class="kpi-title mb-1">Saldo do Empenho</div>
+                <div class="kpi-value {% if kpis.saldo_empenho < 0 %}text-danger{% endif %}">R$ {{ kpis.saldo_empenho|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card kpi-card h-100 p-3 border-start border-4 border-secondary">
+                <div class="kpi-title mb-1">% Convertido em Custo</div>
+                <div class="kpi-value">{{ kpis.percentual_custo_empenhado|floatformat:2 }}%</div>
+            </div>
+        </div>
+        <div class="col-md">
             <div class="card kpi-card h-100 p-3 border-start border-4 border-danger">
-                <div class="kpi-title mb-1">Média Atraso Entrega</div>
-                <div class="kpi-value">{{ atraso_medio_fornecedores }} <span class="fs-6 text-muted fw-normal">dias</span></div>
-                <div class="small text-muted mt-2"><i class="bi bi-truck me-1"></i>Atraso médio nas entregas</div>
+                <div class="kpi-title mb-1">Custo sem Empenho</div>
+                <div class="kpi-value {% if kpis.custo_sem_empenho > 0 %}text-danger{% endif %}">R$ {{ kpis.custo_sem_empenho|floatformat:2 }}</div>
             </div>
         </div>
     </div>
 
-    <div class="row g-4">
-        <div class="col-md-6">
-            <div class="chart-container">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="fw-bold text-secondary m-0" id="tituloGraficoProjetos">Top 5 Projetos Maiores Custos (Clique na barra para detalhes)</h6>
-                    <button id="btnVoltarDrilldown" class="btn btn-sm btn-outline-primary" style="display: none;" onclick="voltarParaProjetos()">
-                        <i class="bi bi-arrow-return-left"></i> Voltar
-                    </button>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-4">
+            <div class="chart-card">
+                <h6 class="fw-bold text-secondary mb-3">Custo x Empenhado</h6>
+                <div class="chart-wrapper">
+                    <canvas id="graficoCustoEmpenho"></canvas>
                 </div>
-                <canvas id="graficoProjetos"></canvas>
             </div>
         </div>
-
-        <div class="col-md-6">
-            <div class="chart-container">
-                <h6 class="fw-bold mb-3 text-secondary">Top 5 Fornecedores Maiores Atrasos</h6>
-                <canvas id="graficoFornecedores"></canvas>
+        <div class="col-lg-8">
+            <div class="chart-card">
+                <h6 class="fw-bold text-secondary mb-3">
+                    {% if modo_carteira %}Top 10 Projetos por Custo{% else %}Top 10 EDT/WBS por Custo{% endif %}
+                </h6>
+                <div class="chart-wrapper">
+                    <canvas id="graficoRanking"></canvas>
+                </div>
             </div>
         </div>
     </div>
+
+    <div class="chart-card mb-4">
+        <h6 class="fw-bold text-secondary mb-3">Top 10 Tarefas por Custo</h6>
+        <div class="chart-wrapper">
+            <canvas id="graficoTarefas"></canvas>
+        </div>
+    </div>
+
+    {% if projeto_atual %}
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center p-3 gap-3">
+            <div>
+                <h6 class="fw-bold text-secondary m-0">Estrutura Financeira por EDT/WBS e Tarefa</h6>
+                <div class="text-muted small">
+                    {% if linhas_hierarquia_page.paginator.count %}
+                        Linhas {{ linhas_hierarquia_page.start_index }} a {{ linhas_hierarquia_page.end_index }} de {{ linhas_hierarquia_page.paginator.count }}
+                    {% else %}
+                        Nenhuma linha para exibir
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if linhas_hierarquia_page.paginator.num_pages > 1 %}
+                <nav aria-label="Navegação da estrutura PMS">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if linhas_hierarquia_page.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">&laquo;</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ linhas_hierarquia_page.previous_page_number }}{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">Anterior</a>
+                            </li>
+                        {% endif %}
+
+                        {% for num in linhas_hierarquia_page.paginator.page_range %}
+                            {% if linhas_hierarquia_page.number == num %}
+                                <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+                            {% elif num > linhas_hierarquia_page.number|add:'-3' and num < linhas_hierarquia_page.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if linhas_hierarquia_page.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ linhas_hierarquia_page.next_page_number }}{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">Próxima</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ linhas_hierarquia_page.paginator.num_pages }}{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">&raquo;</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 mt-3">
+        <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" x-data="pmsTreeTable()">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Estrutura</th>
+                        <th>Descrição</th>
+                        <th class="text-end">Custo</th>
+                        <th class="text-end">Empenhado</th>
+                        <th class="text-end">Saldo do Empenho</th>
+                        <th class="text-end">% em Custo</th>
+                        <th class="text-end">Situação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for linha in linhas_hierarquia %}
+                        <tr
+                            class="{% if linha.tipo == 'edt' %}table-primary fw-bold tree-toggle-row{% else %}tree-task-row{% endif %}"
+                            {% if linha.tipo == 'edt' %}
+                                @click="openEdts['{{ linha.codigo }}'] = !openEdts['{{ linha.codigo }}']"
+                                {% if linha.parent_chain %}
+                                    x-show="isVisible('{{ linha.parent_chain }}')"
+                                    style="display: none;"
+                                {% endif %}
+                            {% else %}
+                                x-show="isVisible('{{ linha.parent_chain }}')"
+                                style="display: none;"
+                            {% endif %}
+                        >
+                            <td>
+                                <div class="hierarchy-cell" style="--tree-level: {{ linha.nivel_visual|default:0 }};">
+                                    {% if linha.tipo == 'edt' %}
+                                        <i class="bi transition-transform"
+                                           :class="openEdts['{{ linha.codigo }}'] ? 'bi-chevron-down' : 'bi-chevron-right'"></i>
+                                        <i class="bi bi-folder-fill"></i>
+                                        <span class="badge bg-primary">EDT</span>
+                                    {% else %}
+                                        <i class="bi bi-arrow-return-right text-muted"></i>
+                                        <span class="badge bg-secondary">Tarefa</span>
+                                    {% endif %}
+                                    <span class="hierarchy-code">{{ linha.codigo }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                {{ linha.descricao|default:"-" }}
+                                {% if linha.tipo == 'edt' %}
+                                    <div class="small text-muted">{{ linha.tarefas_count }} tarefa(s) vinculadas</div>
+                                {% else %}
+                                    <div class="small text-muted">EDT: {{ linha.edt }} | {{ linha.unidade|default:"-" }} | Qtd: {{ linha.quantidade|floatformat:2 }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">R$ {{ linha.custo|floatformat:2 }}</td>
+                            <td class="text-end">R$ {{ linha.empenhado|floatformat:2 }}</td>
+                            <td class="text-end {% if linha.saldo_empenho < 0 %}text-danger fw-bold{% endif %}">R$ {{ linha.saldo_empenho|floatformat:2 }}</td>
+                            <td class="text-end">{{ linha.percentual_custo_empenhado|floatformat:2 }}%</td>
+                            <td class="text-end">
+                                {% if linha.situacao_financeira == 'custo_sem_empenho' %}
+                                    <span class="badge bg-danger">Custo sem empenho</span>
+                                {% elif linha.situacao_financeira == 'custo_acima_empenho' %}
+                                    <span class="badge bg-danger">Custo acima do empenho</span>
+                                {% elif linha.situacao_financeira == 'totalmente_realizado' %}
+                                    <span class="badge bg-success">Totalmente realizado</span>
+                                {% elif linha.situacao_financeira == 'em_aberto' %}
+                                    <span class="badge bg-warning text-dark">Em aberto</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Sem movimentação</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                Nenhuma linha PMS disponível para os filtros selecionados.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </div>
+    </div>
+    {% else %}
+        <div class="alert alert-light border">
+            Selecione um projeto para consultar a estrutura tree de EDT/WBS e tarefas.
+        </div>
+    {% endif %}
 </div>
+
+{{ grafico_custo_empenho|json_script:"grafico-custo-empenho-data" }}
+{{ grafico_projetos|json_script:"grafico-projetos-data" }}
+{{ grafico_edts|json_script:"grafico-edts-data" }}
+{{ grafico_tarefas|json_script:"grafico-tarefas-data" }}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    const projetosLabelsOriginal = {{ projetos_labels|safe }};
-    const projetosDataOriginal = {{ projetos_data|safe }};
-    const drilldownDict = {{ drilldown_dict|safe }};
+    function pmsTreeTable() {
+        return {
+            openEdts: {},
+            isVisible(parentChain) {
+                if (!parentChain) {
+                    return true;
+                }
+                return parentChain.split('|').every((codigo) => this.openEdts[codigo]);
+            }
+        };
+    }
 
-    let estadoGrafico = 'projetos';
+    const custoEmpenho = JSON.parse(document.getElementById('grafico-custo-empenho-data').textContent);
+    const graficoProjetos = JSON.parse(document.getElementById('grafico-projetos-data').textContent);
+    const graficoEdts = JSON.parse(document.getElementById('grafico-edts-data').textContent);
+    const graficoTarefas = JSON.parse(document.getElementById('grafico-tarefas-data').textContent);
+    const ranking = {% if modo_carteira %}graficoProjetos{% else %}{
+        labels: graficoEdts.labels,
+        custo: graficoEdts.data,
+        empenhado: graficoEdts.empenhado
+    }{% endif %};
 
-    const ctxProjetos = document.getElementById('graficoProjetos').getContext('2d');
-    let chartProjetos = new Chart(ctxProjetos, {
+    new Chart(document.getElementById('graficoCustoEmpenho'), {
         type: 'bar',
         data: {
-            labels: projetosLabelsOriginal,
+            labels: custoEmpenho.labels,
             datasets: [{
-                label: 'Custo Total (R$)',
-                data: projetosDataOriginal,
-                backgroundColor: '#141C3C',
+                data: custoEmpenho.data,
+                backgroundColor: ['#198754', '#ffc107'],
                 borderRadius: 4
             }]
         },
@@ -149,57 +357,66 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
-            onClick: (e, activeElements) => {
-                if (estadoGrafico === 'projetos' && activeElements.length > 0) {
-                    const indexClicado = activeElements[0].index;
-                    const nomeProjeto = chartProjetos.data.labels[indexClicado];
-
-                    if (drilldownDict[nomeProjeto]) {
-                        chartProjetos.data.labels = drilldownDict[nomeProjeto].labels;
-                        chartProjetos.data.datasets[0].data = drilldownDict[nomeProjeto].data;
-                        chartProjetos.data.datasets[0].backgroundColor = '#FF742E';
-                        chartProjetos.update();
-
-                        document.getElementById('tituloGraficoProjetos').innerText = 'Custo por Tarefa - ' + nomeProjeto;
-                        document.getElementById('btnVoltarDrilldown').style.display = 'block';
-                        estadoGrafico = 'tarefas';
-                    }
-                }
-            }
+            scales: { y: { beginAtZero: true } }
         }
     });
 
-    function voltarParaProjetos() {
-        chartProjetos.data.labels = projetosLabelsOriginal;
-        chartProjetos.data.datasets[0].data = projetosDataOriginal;
-        chartProjetos.data.datasets[0].backgroundColor = '#141C3C';
-        chartProjetos.update();
-
-        document.getElementById('tituloGraficoProjetos').innerText = 'Top 5 Projetos (Clique na barra para detalhes)';
-        document.getElementById('btnVoltarDrilldown').style.display = 'none';
-        estadoGrafico = 'projetos';
-    }
-
-    const ctxFornecedores = document.getElementById('graficoFornecedores').getContext('2d');
-    new Chart(ctxFornecedores, {
+    new Chart(document.getElementById('graficoRanking'), {
         type: 'bar',
         data: {
-            labels: {{ fornecedores_labels|safe }},
-            datasets: [{
-                label: 'Média de Atraso (Dias)',
-                data: {{ fornecedores_data|safe }},
-                backgroundColor: '#dc3545',
-                borderRadius: 4
-            }]
+            labels: ranking.labels,
+            datasets: [
+                {
+                    label: 'Custo',
+                    data: ranking.custo,
+                    backgroundColor: '#198754',
+                    borderRadius: 4
+                },
+                {
+                    label: 'Empenhado',
+                    data: ranking.empenhado,
+                    backgroundColor: '#ffc107',
+                    borderRadius: 4
+                }
+            ]
         },
         options: {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } }
+            scales: { x: { beginAtZero: true } }
+        }
+    });
+
+    new Chart(document.getElementById('graficoTarefas'), {
+        type: 'bar',
+        data: {
+            labels: graficoTarefas.labels,
+            datasets: [
+                {
+                    label: 'Custo',
+                    data: graficoTarefas.custo,
+                    backgroundColor: '#141C3C',
+                    borderRadius: 4
+                },
+                {
+                    label: 'Empenhado',
+                    data: graficoTarefas.empenhado,
+                    backgroundColor: '#FF742E',
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { beginAtZero: true } }
         }
     });
 </script>
 {% endblock %}
-{% block extra_scripts %}
+
+{% block extra_js %}
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 {% endblock %}

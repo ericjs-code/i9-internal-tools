@@ -25,14 +25,16 @@
         <h3 class="fw-bold" style="color: var(--azul-principal);">
             <i class="bi bi-list-check me-2"></i> Fila Operacional de Compras
         </h3>
-        <div>
-            <button class="btn btn-primary btn-sync-global"
-                data-url="{% url 'atualizar_dados_dw' %}"
-                data-check-url="{% url 'checar_status_task_global' task_id='TASK_ID_PLACEHOLDER' %}"
-                data-csrf="{{ csrf_token }}">
-                <i class="bi bi-arrow-clockwise me-2"></i> Sincronizar
-            </button>
-        </div>
+        {% if request.user.is_staff %}
+            <div>
+                <button class="btn btn-primary btn-sync-global"
+                    data-url="{% url 'atualizar_dados_dw' %}"
+                    data-check-url="{% url 'checar_status_task_global' task_id='TASK_ID_PLACEHOLDER' %}"
+                    data-csrf="{{ csrf_token }}">
+                    <i class="bi bi-arrow-clockwise me-2"></i> Sincronizar
+                </button>
+            </div>
+        {% endif %}
     </div>
 
     <div class="row g-4 mb-4">

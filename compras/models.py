@@ -1,52 +1,5 @@
-from django.contrib.postgres.aggregates import statistics
 from django.db import models
 from django.conf import settings
-
-
-class DataWarehouseCompras(models.Model):
-    # Chaves
-    filial = models.CharField(max_length=20, null=True, blank=True)
-    num_sc = models.CharField(max_length=50, null=True, blank=True)
-    cod_produto = models.CharField(max_length=100, null=True, blank=True)
-    descricao = models.CharField(max_length=255, null=True, blank=True)
-
-    # Projetos
-    projeto_cod = models.CharField(max_length=50, null=True, blank=True)
-    tarefa_cod = models.CharField(max_length=50, null=True, blank=True)
-
-    # Pedido e Fornecedor
-    num_pedido = models.CharField(max_length=50, null=True, blank=True)
-    cod_fornecedor = models.CharField(max_length=50, null=True, blank=True)
-    nome_fornecedor = models.CharField(max_length=255, null=True, blank=True)
-    status = models.CharField(max_length=50, null=True, blank=True)
-
-    # Datas 
-    emissao_sc = models.DateField(null=True, blank=True)
-    emissao_pedido = models.DateField(null=True, blank=True)
-    data_prev_recebimento_fisico = models.DateField(null=True, blank=True)
-    data_recebimento_real = models.DateField(null=True, blank=True)
-
-    # Valores e Quantidades
-    qtd_solicitada = models.FloatField(default=0)
-    qtd_pedido = models.FloatField(default=0)
-    qtd_recebida = models.FloatField(default=0)
-    valor_unitario = models.FloatField(default=0)
-    valor_total = models.FloatField(default=0)
-
-    # Métricas de SLA (Lead Times)
-    leadtime_compras = models.IntegerField(default=0)
-    leadtime_fornecedor = models.IntegerField(default=0)
-    dias_atraso_entrega = models.IntegerField(default=0)
-
-    # Controle de Atualização
-    data_importacao = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "DW Compras"
-        verbose_name_plural = "DW Compras"
-
-    def __str__(self):
-        return f"SC: {self.num_sc} | Pedido: {self.num_pedido} | Valor: R$ {self.valor_total}"
 
 
 class OperacaoCompras(models.Model):
@@ -91,6 +44,170 @@ class OperacaoCompras(models.Model):
 
     def __str__(self):
         return f"SC: {self.num_sc} | Status: {self.status_operacional}"
+
+
+class PmsProjeto(models.Model):
+    filial = models.CharField(max_length=20)
+    projeto = models.CharField(max_length=50)
+    revisao = models.CharField(max_length=20)
+    descricao = models.CharField(max_length=255, blank=True, default='')
+    data_base = models.DateField(null=True, blank=True)
+    calendario = models.CharField(max_length=50, blank=True, default='')
+    mascara = models.CharField(max_length=50, blank=True, default='')
+    delimitador = models.CharField(max_length=10, blank=True, default='')
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Projeto PMS"
+        verbose_name_plural = "Projetos PMS"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['filial', 'projeto', 'revisao'],
+                name='uniq_pms_projeto_revisao',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['projeto', 'revisao']),
+            models.Index(fields=['filial', 'projeto', 'revisao']),
+        ]
+
+    def __str__(self):
+        return f"{self.projeto} | Rev. {self.revisao}"
+
+
+class PmsEdt(models.Model):
+    filial = models.CharField(max_length=20)
+    projeto = models.CharField(max_length=50)
+    revisao = models.CharField(max_length=20)
+    edt = models.CharField(max_length=50)
+    edt_pai = models.CharField(max_length=50, blank=True, default='')
+    descricao = models.CharField(max_length=255, blank=True, default='')
+    nivel = models.PositiveIntegerField(null=True, blank=True)
+    ordem = models.CharField(max_length=50, blank=True, default='')
+    unidade = models.CharField(max_length=20, blank=True, default='')
+    quantidade = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    custo_previsto = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "EDT PMS"
+        verbose_name_plural = "EDTs PMS"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['filial', 'projeto', 'revisao', 'edt'],
+                name='uniq_pms_edt_revisao',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['projeto', 'revisao', 'edt']),
+            models.Index(fields=['filial', 'projeto', 'revisao', 'edt_pai']),
+        ]
+
+    def __str__(self):
+        return f"{self.projeto} | {self.edt}"
+
+
+class PmsTarefa(models.Model):
+    filial = models.CharField(max_length=20)
+    projeto = models.CharField(max_length=50)
+    revisao = models.CharField(max_length=20)
+    tarefa = models.CharField(max_length=50)
+    edt = models.CharField(max_length=50, blank=True, default='')
+    descricao = models.CharField(max_length=255, blank=True, default='')
+    nivel = models.PositiveIntegerField(null=True, blank=True)
+    ordem = models.CharField(max_length=50, blank=True, default='')
+    unidade = models.CharField(max_length=20, blank=True, default='')
+    quantidade = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    data_inicio_prevista = models.DateField(null=True, blank=True)
+    data_fim_prevista = models.DateField(null=True, blank=True)
+    custo_previsto = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Tarefa PMS"
+        verbose_name_plural = "Tarefas PMS"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['filial', 'projeto', 'revisao', 'tarefa'],
+                name='uniq_pms_tarefa_revisao',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['projeto', 'revisao', 'tarefa']),
+            models.Index(fields=['filial', 'projeto', 'revisao', 'edt']),
+        ]
+
+    def __str__(self):
+        return f"{self.projeto} | {self.tarefa}"
+
+
+class PmsCustoTarefa(models.Model):
+    filial = models.CharField(max_length=20)
+    projeto = models.CharField(max_length=50)
+    revisao = models.CharField(max_length=20)
+    edt = models.CharField(max_length=50, blank=True, default='')
+    tarefa = models.CharField(max_length=50)
+    custo_previsto = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    custo_previsto_produtos = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    custo_previsto_despesas = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    custo_previsto_detalhado = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    custo_realizado = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    custo_empenhado = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    saldo_previsto_realizado = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    variacao_percentual = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Custo PMS por Tarefa"
+        verbose_name_plural = "Custos PMS por Tarefa"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['filial', 'projeto', 'revisao', 'tarefa'],
+                name='uniq_pms_custo_tarefa_revisao',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['projeto', 'revisao', 'tarefa']),
+            models.Index(fields=['filial', 'projeto', 'revisao', 'edt']),
+        ]
+
+    def __str__(self):
+        return f"{self.projeto} | {self.tarefa} | R$ {self.custo_previsto}"
+
+
+class ComprasSyncLog(models.Model):
+    STATUS_SUCESSO = 'SUCESSO'
+    STATUS_ERRO = 'ERRO'
+    STATUS_PROCESSANDO = 'PROCESSANDO'
+
+    STATUS_CHOICES = [
+        (STATUS_PROCESSANDO, 'Processando'),
+        (STATUS_SUCESSO, 'Sucesso'),
+        (STATUS_ERRO, 'Erro'),
+    ]
+
+    nome = models.CharField(max_length=100)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PROCESSANDO)
+    iniciado_em = models.DateTimeField(auto_now_add=True)
+    finalizado_em = models.DateTimeField(null=True, blank=True)
+    arquivos_processados = models.JSONField(default=list, blank=True)
+    linhas_lidas = models.PositiveIntegerField(default=0)
+    linhas_gravadas = models.PositiveIntegerField(default=0)
+    mensagem = models.TextField(blank=True, default='')
+    erro = models.TextField(blank=True, default='')
+    executado_por = models.CharField(max_length=150, blank=True, default='')
+
+    class Meta:
+        verbose_name = "Log de Sincronização de Compras"
+        verbose_name_plural = "Logs de Sincronização de Compras"
+        ordering = ['-iniciado_em']
+        indexes = [
+            models.Index(fields=['nome', 'status']),
+            models.Index(fields=['-iniciado_em']),
+        ]
+
+    def __str__(self):
+        return f"{self.nome} | {self.status} | {self.iniciado_em:%d/%m/%Y %H:%M}"
 
 
 class PerguntaAvaliacao(models.Model):

@@ -5,7 +5,7 @@ import logging
 from django.conf import settings
 from datetime import datetime
 from django.db import transaction
-from compras.models import DataWarehouseCompras, OperacaoCompras
+from compras.models import OperacaoCompras
 from core.services.protheus_etl import ProtheusBaseETL
 
 logger = logging.getLogger(__name__)
@@ -25,25 +25,23 @@ class ComprasETLService(ProtheusBaseETL):
     @classmethod
     def transformar_e_salvar(cls, dados_limpos: dict):
         """Implementação obrigatória do Template Method do Core"""
-        logger.info("[COMPRAS] Iniciando processamento das regras de negócio (DW e Operacional)...")
+        logger.info("[COMPRAS] Iniciando processamento da operação de Compras...")
 
         # O Core nos entrega um dicionário limpo, sem D_E_L_E_T_, decodificado e sem espaços em branco.
-        df_dw = cls._processar_dw(dados_limpos)
         df_operacional = cls._processar_operacional(dados_limpos)
 
-        cls._exportar_relatorios(df_dw, df_operacional)
+        cls._exportar_relatorio_operacional(df_operacional)
 
-        cls._salvar_no_banco(df_dw, df_operacional)
+        cls._salvar_no_banco(df_operacional)
 
         logger.info("[COMPRAS] Processamento e exportação concluídos com sucesso.")
         return True
 
     @classmethod
-    def _salvar_no_banco(cls, df_dw: pd.DataFrame, df_op: pd.DataFrame):
+    def _salvar_no_banco(cls, df_op: pd.DataFrame):
         logger.info("[COMPRAS] Convertendo DataFrames para registros ORM...")
 
         # Converte DataFrames para dicionários (Vetorização para performance)
-        dw_records = df_dw.to_dict('records')
         op_records = df_op.to_dict('records')
 
         # Funções utilitárias locais para limpeza
@@ -57,33 +55,6 @@ class ComprasETLService(ProtheusBaseETL):
             return None
 
         # Criação dos registros usando compreensão de lista (Muito mais rápido que iterrows)
-        registros_dw = [
-            DataWarehouseCompras(
-                filial=str(r.get('Filial', '')).strip(),
-                num_sc=str(r.get('Num_SC', '')).strip(),
-                cod_produto=str(r.get('Cod_Produto', '')).strip(),
-                descricao=str(r.get('Descricao', '')).strip(),
-                projeto_cod=str(r.get('Projeto_Cod', '')).strip(),
-                tarefa_cod=str(r.get('Tarefa_Cod', '')).strip(),
-                num_pedido=str(r.get('Num_Pedido', '')).strip(),
-                cod_fornecedor=str(r.get('Cod_Fornecedor', '')).strip(),
-                nome_fornecedor=str(r.get('Nome_Fornecedor', '')).strip(),
-                status=str(r.get('Status', '')).strip(),
-                emissao_sc=limpa_data(r.get('Emissao_SC')),
-                emissao_pedido=limpa_data(r.get('Emissao_Pedido')),
-                data_prev_recebimento_fisico=limpa_data(r.get('Data_Prev_Recebimento_Fisico')),
-                data_recebimento_real=limpa_data(r.get('Data_Recebimento_Real')),
-                qtd_solicitada=float(r.get('Qtd_Solicitada') or 0),
-                qtd_pedido=float(r.get('Qtd_Pedido') or 0),
-                qtd_recebida=float(r.get('Qtd_Recebida') or 0),
-                valor_unitario=float(r.get('Valor_Unitario') or 0),
-                valor_total=float(r.get('Valor_Total') or 0),
-                leadtime_compras=int(r.get('LeadTime_Compras') or 0),
-                leadtime_fornecedor=int(r.get('LeadTime_Fornecedor') or 0),
-                dias_atraso_entrega=int(r.get('Dias_Atraso_Entrega') or 0)
-            ) for r in dw_records
-        ]
-
         registros_op = [
             OperacaoCompras(
                 filial=str(r.get('Filial', '')).strip(),
@@ -112,91 +83,10 @@ class ComprasETLService(ProtheusBaseETL):
         ]
 
         with transaction.atomic():
-            logger.info("[COMPRAS] Realizando Full Refresh das tabelas...")
-            DataWarehouseCompras.objects.all().delete()
+            logger.info("[COMPRAS] Realizando Full Refresh da operação...")
             OperacaoCompras.objects.all().delete()
-            DataWarehouseCompras.objects.bulk_create(registros_dw, batch_size=2000)
             OperacaoCompras.objects.bulk_create(registros_op, batch_size=2000)
             logger.info("[COMPRAS] Persistência concluída.")
-
-    @classmethod
-    def _processar_dw(cls, dados_brutos: dict) -> pd.DataFrame:
-        """Regra de negócio do Dashboard Gerencial (DW)"""
-
-        df_sc1 = dados_brutos['sc1'].copy()
-        df_sc7 = dados_brutos['sc7'].copy()
-        df_sa2 = dados_brutos['sa2'].copy()
-        df_sd1 = dados_brutos['sd1'].copy()
-        df_afg = dados_brutos['afg'].copy()
-
-        df_sd1['D1_QUANT'] = pd.to_numeric(df_sd1['D1_QUANT'], errors='coerce').fillna(0)
-        df_sd1_agg = df_sd1.groupby(['D1_FILIAL', 'D1_PEDIDO', 'D1_ITEMPC']).agg(
-            QTD_RECEBIDA=('D1_QUANT', 'sum'),
-            DATA_RECEBIMENTO_REAL=('D1_DTDIGIT', 'max')
-        ).reset_index()
-
-        # Blindagem de Fornecedor DW
-        df_sa2_unico = df_sa2.drop_duplicates(subset=['A2_COD']).copy()
-        df_sa2_unico['A2_COD'] = df_sa2_unico['A2_COD'].astype(str).str.split('.').str[0].str.replace(r'\D', '', regex=True).str.zfill(
-            6)
-
-        if 'AFG_NUMSC' in df_afg.columns:
-            df_afg_unique = df_afg.drop_duplicates(subset=['AFG_NUMSC', 'AFG_ITEMSC'])
-        else:
-            df_afg_unique = pd.DataFrame(columns=['AFG_NUMSC', 'AFG_ITEMSC', 'AFG_PROJET', 'AFG_TAREFA'])
-
-        df_merged = pd.merge(df_sc1, df_sc7, how='left', left_on=['C1_FILIAL', 'C1_NUM', 'C1_ITEM'], right_on=['C7_FILIAL', 'C7_NUMSC', 'C7_ITEMSC'])
-        df_merged = pd.merge(df_merged, df_afg_unique, how='left', left_on=['C1_NUM', 'C1_ITEM'], right_on=['AFG_NUMSC', 'AFG_ITEMSC'])
-        df_merged['PROJETO_CODIGO'] = df_merged.get('AFG_PROJET', '')
-        df_merged['TAREFA_CODIGO'] = df_merged.get('AFG_TAREFA', '')
-
-        # Cruzamento Blindado
-        df_merged['C7_FORNECE'] = df_merged['C7_FORNECE'].astype(str).str.split('.').str[0].str.replace(r'\D', '', regex=True).str.zfill(
-            6)
-        df_merged = pd.merge(df_merged, df_sa2_unico, how='left', left_on='C7_FORNECE', right_on='A2_COD')
-        df_merged['A2_NOME'] = df_merged['A2_NOME'].fillna('FORNECEDOR NÃO ENCONTRADO')
-
-        df_merged = pd.merge(df_merged, df_sd1_agg, how='left', left_on=['C7_FILIAL', 'C7_NUM', 'C7_ITEM'], right_on=['D1_FILIAL', 'D1_PEDIDO', 'D1_ITEMPC'])
-
-        def convert_date(serie):
-            return pd.to_datetime(serie, format='%Y%m%d', errors='coerce')
-
-        df_merged['DATA_SC_REAL'] = convert_date(df_merged.get('C1_EMISSAO'))
-        df_merged['DATA_PEDIDO_REAL'] = convert_date(df_merged.get('C7_EMISSAO'))
-        df_merged['DATA_PREV_RECEBIMENTO'] = convert_date(df_merged.get('C7_DATPRF'))
-        df_merged['DATA_RECEBIMENTO_REAL_DT'] = convert_date(df_merged.get('DATA_RECEBIMENTO_REAL'))
-
-        df_merged['STATUS_COMPRA'] = np.where(df_merged['C7_NUM'].isna() | (df_merged['C7_NUM'] == ''), 'PENDENTE', 'COM PEDIDO')
-        df_merged['STATUS_COMPRA'] = np.where(df_merged['DATA_RECEBIMENTO_REAL_DT'].notna(), 'ENTREGUE', df_merged['STATUS_COMPRA'])
-
-        df_merged['DIAS_LEAD_TIME'] = (df_merged['DATA_PEDIDO_REAL'] - df_merged['DATA_SC_REAL']).dt.days.fillna(0).astype(int)
-        df_merged['DIAS_LEAD_FORNECEDOR'] = (df_merged['DATA_PREV_RECEBIMENTO'] - df_merged['DATA_PEDIDO_REAL']).dt.days.fillna(0).astype(int)
-        df_merged['DIAS_ATRASO_ENTREGA'] = (df_merged['DATA_RECEBIMENTO_REAL_DT'] - df_merged['DATA_PREV_RECEBIMENTO']).dt.days.fillna(0).astype(int)
-
-        colunas_map = {
-            'C1_FILIAL': 'Filial', 'C1_NUM': 'Num_SC', 'C1_PRODUTO': 'Cod_Produto', 'C1_DESCRI': 'Descricao',
-            'C1_QUANT': 'Qtd_Solicitada', 'PROJETO_CODIGO': 'Projeto_Cod', 'TAREFA_CODIGO': 'Tarefa_Cod',
-            'C7_NUM': 'Num_Pedido', 'C7_FORNECE': 'Cod_Fornecedor', 'A2_NOME': 'Nome_Fornecedor',
-            'A2_CGC': 'CNPJ', 'C7_QUANT': 'Qtd_Pedido', 'QTD_RECEBIDA': 'Qtd_Recebida',
-            'C7_PRECO': 'Valor_Unitario', 'C7_TOTAL': 'Valor_Total', 'STATUS_COMPRA': 'Status',
-            'DIAS_LEAD_TIME': 'LeadTime_Compras', 'DIAS_LEAD_FORNECEDOR': 'LeadTime_Fornecedor',
-            'DIAS_ATRASO_ENTREGA': 'Dias_Atraso_Entrega'
-        }
-
-        df_merged['Emissao_SC'] = df_merged['DATA_SC_REAL'].dt.strftime('%d/%m/%Y').fillna('-')
-        df_merged['Emissao_Pedido'] = df_merged['DATA_PEDIDO_REAL'].dt.strftime('%d/%m/%Y').fillna('-')
-        df_merged['Data_Prev_Recebimento_Fisico'] = df_merged['DATA_PREV_RECEBIMENTO'].dt.strftime('%d/%m/%Y').fillna('-')
-        df_merged['Data_Recebimento_Real'] = df_merged['DATA_RECEBIMENTO_REAL_DT'].dt.strftime('%d/%m/%Y').fillna('-')
-
-        df_final = df_merged.rename(columns=colunas_map)
-        cols_finais = list(colunas_map.values()) + ['Emissao_SC', 'Emissao_Pedido', 'Data_Prev_Recebimento_Fisico','Data_Recebimento_Real']
-        df_final = df_final[[c for c in cols_finais if c in df_final.columns]]
-
-        for col in ['Qtd_Solicitada', 'Qtd_Pedido', 'Qtd_Recebida', 'Valor_Unitario', 'Valor_Total']:
-            if col in df_final.columns:
-                df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0)
-
-        return df_final
 
     @classmethod
     def _processar_operacional(cls, dados_brutos: dict) -> pd.DataFrame:
@@ -314,19 +204,17 @@ class ComprasETLService(ProtheusBaseETL):
         return df_final
 
     @classmethod
-    def _exportar_relatorios(cls, df_dw: pd.DataFrame, df_operacional: pd.DataFrame):
-        """Gera os arquivos Excel no diretório de Mídia do Django"""
+    def _exportar_relatorio_operacional(cls, df_operacional: pd.DataFrame):
+        """Gera o arquivo Excel operacional no diretório de mídia do Django."""
 
         # Cria pasta específica para os relatórios de compras dentro do MEDIA_ROOT
         diretorio_saida = os.path.join(settings.MEDIA_ROOT, 'compras', 'relatorios')
         os.makedirs(diretorio_saida, exist_ok=True)
 
-        caminho_dw = os.path.join(diretorio_saida, 'report_SC_x_PC.xlsx')
         caminho_op = os.path.join(diretorio_saida, 'report_operacional.xlsx')
 
-        logger.info("[COMPRAS] Gravando arquivos Excel no disco/storage...")
+        logger.info("[COMPRAS] Gravando relatório operacional no disco/storage...")
 
-        df_dw.to_excel(caminho_dw, index=False)
         df_operacional.to_excel(caminho_op, index=False)
 
         logger.info(f"[COMPRAS] Relatórios exportados com sucesso em {diretorio_saida}")

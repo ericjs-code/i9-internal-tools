@@ -19,12 +19,14 @@
             <a href="{% url 'dashboard_avaliacoes' %}" class="btn btn-sm btn-primary shadow-sm">
                 <i class="bi bi-graph-up-arrow me-1"></i> Ver Dashboard
             </a>
-            <button class="btn btn-primary btn-sync-global"
-                data-url="{% url 'atualizar_dados_dw' %}"
-                data-check-url="{% url 'checar_status_task_global' task_id='TASK_ID_PLACEHOLDER' %}"
-                data-csrf="{{ csrf_token }}">
-                <i class="bi bi-arrow-clockwise me-2"></i> Sincronizar
-            </button>
+            {% if request.user.is_staff %}
+                <button class="btn btn-primary btn-sync-global"
+                    data-url="{% url 'atualizar_dados_dw' %}"
+                    data-check-url="{% url 'checar_status_task_global' task_id='TASK_ID_PLACEHOLDER' %}"
+                    data-csrf="{{ csrf_token }}">
+                    <i class="bi bi-arrow-clockwise me-2"></i> Sincronizar
+                </button>
+            {% endif %}
         </div>
     </div>
 
