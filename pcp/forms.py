@@ -207,15 +207,31 @@ class PcpInicioManutencaoForm(BootstrapFormMixin, forms.Form):
 
 class PcpConclusaoManutencaoForm(BootstrapFormMixin, forms.Form):
     data_fim = forms.DateTimeField(
-        required=False,
+        required=True,
         input_formats=["%Y-%m-%dT%H:%M"],
         widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
         label="Data e hora de conclusão",
     )
-    diagnostico = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Diagnóstico")
-    servicos_executados = forms.CharField(widget=forms.Textarea(attrs={"rows": 4}), label="Serviços executados")
-    resultado = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), label="Resultado")
-    recomendacoes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Recomendações")
+    diagnostico = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Opcional"}),
+        label="Diagnóstico",
+    )
+    servicos_executados = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 4, "placeholder": "Opcional"}),
+        label="Serviços executados",
+    )
+    resultado = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Opcional"}),
+        label="Resultado",
+    )
+    recomendacoes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Opcional"}),
+        label="Recomendações",
+    )
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
