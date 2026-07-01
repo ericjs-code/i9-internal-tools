@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 @group_required(['Compras'])
 def dashboard_compras(request):
     context = PmsDashboardSelector.get_context(filtros={
-        'projeto': request.GET.get('projeto'),
+        'projeto': request.GET.getlist('projeto'),
+        'categorias': request.GET.getlist('categorias'),
         'page': request.GET.get('page'),
     })
     return render(request, 'compras/dashboard.html', context)

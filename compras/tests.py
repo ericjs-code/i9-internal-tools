@@ -1,5 +1,7 @@
+from datetime import date
 from decimal import Decimal
 from io import StringIO
+import json
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -7,14 +9,23 @@ from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.management import call_command, CommandParser
 from django.core.management.base import CommandError
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import IntegrityError
 from django.test import TestCase
 
-from compras.models import ComprasSyncLog, PmsCustoTarefa, PmsEdt, PmsProjeto, PmsTarefa
+from compras.models import (
+    ComprasSyncLog,
+    PmsCustoTarefa,
+    PmsCustoTemporalMensal,
+    PmsEdt,
+    PmsProjeto,
+    PmsTarefa,
+)
 from compras.management.commands.sync_pms_dashboard import Command as SyncPmsDashboardCommand
 from compras.selectors import PmsDashboardSelector
 from compras.services.etl_service import ComprasETLService
 from compras.services.pms_etl_service import ComprasPmsETLService
+from compras.services.pms_executive_metrics import PmsExecutiveMetricsService
 from compras.services.pms_hierarchy import (
     calcular_indicadores_empenho,
     consolidar_custos_por_edt,
@@ -65,6 +76,29 @@ class PmsHierarchyTests(TestCase):
         self.assertEqual(resultado['percentual_custo_empenhado'], Decimal('250.0'))
         self.assertEqual(resultado['situacao_financeira'], 'custo_acima_empenho')
 
+    def test_calcula_percentual_acima_do_empenho(self):
+        self.assertEqual(
+            PmsExecutiveMetricsService._percentual_acima_empenho(
+                realizado=Decimal('90.00'),
+                empenhado=Decimal('100.00'),
+            ),
+            Decimal('0'),
+        )
+        self.assertEqual(
+            PmsExecutiveMetricsService._percentual_acima_empenho(
+                realizado=Decimal('150.00'),
+                empenhado=Decimal('100.00'),
+            ),
+            Decimal('50.0'),
+        )
+        self.assertEqual(
+            PmsExecutiveMetricsService._percentual_acima_empenho(
+                realizado=Decimal('150.00'),
+                empenhado=Decimal('0'),
+            ),
+            Decimal('100'),
+        )
+
 
 class PmsDashboardSelectorTests(TestCase):
     def setUp(self):
@@ -112,6 +146,16 @@ class PmsDashboardSelectorTests(TestCase):
             custo_empenhado=Decimal('100.00'),
             saldo_previsto_realizado=Decimal('750.00'),
             variacao_percentual=Decimal('25.00'),
+        )
+        PmsCustoTemporalMensal.objects.create(
+            filial='01',
+            projeto='JP010125',
+            revisao='0002',
+            edt='01.01',
+            tarefa='01.01.01.01',
+            competencia=date(2026, 6, 1),
+            custo_empenhado=Decimal('100.00'),
+            custo_realizado=Decimal('250.00'),
         )
 
     def test_contexto_retorna_kpis_e_linhas_hierarquicas(self):
@@ -163,6 +207,53 @@ class PmsDashboardSelectorTests(TestCase):
         self.assertEqual(context['grafico_projetos']['labels'], ['JP010125'])
         self.assertEqual(context['grafico_projetos']['custo'], [250.0])
         self.assertEqual(context['grafico_projetos']['empenhado'], [100.0])
+
+    def test_serie_temporal_do_contexto_e_serializavel_em_json(self):
+        context = PmsDashboardSelector.get_context()
+
+        json.dumps(context['serie_temporal'], cls=DjangoJSONEncoder)
+        self.assertNotIn('dias_analise', context['serie_temporal'])
+        self.assertEqual(context['serie_temporal']['labels'], ['06/2026'])
+
+    def test_contexto_aceita_multiplos_projetos_sem_carregar_arvore(self):
+        PmsProjeto.objects.create(
+            filial='01',
+            projeto='JP020125',
+            revisao='0001',
+            descricao='Projeto adicional',
+        )
+        PmsTarefa.objects.create(
+            filial='01',
+            projeto='JP020125',
+            revisao='0001',
+            tarefa='T2',
+            edt='02',
+            descricao='Tarefa adicional',
+            custo_previsto=Decimal('300.00'),
+        )
+        PmsCustoTarefa.objects.create(
+            filial='01',
+            projeto='JP020125',
+            revisao='0001',
+            edt='02',
+            tarefa='T2',
+            custo_previsto=Decimal('300.00'),
+            custo_realizado=Decimal('150.00'),
+            custo_empenhado=Decimal('200.00'),
+            saldo_previsto_realizado=Decimal('150.00'),
+            variacao_percentual=Decimal('50.00'),
+        )
+
+        context = PmsDashboardSelector.get_context({
+            'projeto': ['JP010125', 'JP020125'],
+        })
+
+        self.assertTrue(context['modo_carteira'])
+        self.assertIsNone(context['projeto_atual'])
+        self.assertEqual(context['filtros']['projetos'], ['JP010125', 'JP020125'])
+        self.assertEqual(context['kpis']['custo'], Decimal('400.00'))
+        self.assertEqual(context['linhas_hierarquia'], [])
+        self.assertEqual(context['pagination_querystring'], 'projeto=JP010125&projeto=JP020125')
 
     def test_paginacao_inclui_ancestrais_da_linha_paginada(self):
         linhas = [
@@ -284,6 +375,24 @@ class PmsDashboardViewTests(TestCase):
         self.assertEqual(len(response.context['linhas_hierarquia']), 1)
         self.assertEqual(response.context['linhas_hierarquia'][0]['codigo'], '101')
         self.assertContains(response, 'Linhas 101 a 101 de 101')
+
+    def test_dashboard_pms_recebe_multiplos_projetos(self):
+        PmsProjeto.objects.create(
+            filial='01',
+            projeto='JP020125',
+            revisao='0001',
+            descricao='Projeto adicional',
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            '/compras/dashboard/?projeto=JP010125&projeto=JP020125',
+            HTTP_HOST='localhost',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['filtros']['projetos'], ['JP010125', 'JP020125'])
+        self.assertTrue(response.context['modo_carteira'])
 
 
 class ComprasSyncAuthorizationTests(TestCase):
@@ -662,6 +771,54 @@ class ComprasPmsETLServiceTests(TestCase):
         ):
             ComprasPmsETLService._rateios_por_solicitacao(mapeamentos)
 
+    def test_montar_custos_temporais_usa_datas_financeiras(self):
+        tarefas = pd.DataFrame([{
+            'AF9_FILIAL': '01',
+            'AF9_PROJET': 'JP010125',
+            'AF9_REVISA': '0002',
+            'AF9_TAREFA': 'T1',
+            'AF9_EDTPAI': '01',
+            'AF9_CUSTO': '1000',
+        }])
+        mapeamentos = pd.DataFrame([{
+            'AFG_FILIAL': '01',
+            'AFG_PROJET': 'JP010125',
+            'AFG_REVISA': '0002',
+            'AFG_TAREFA': 'T1',
+            'AFG_NUMSC': 'SC1',
+            'AFG_ITEMSC': '01',
+            'AFG_QUANT': '1',
+        }])
+        pedidos = pd.DataFrame([{
+            'C7_FILIAL': '01',
+            'C7_NUMSC': 'SC1',
+            'C7_ITEMSC': '01',
+            'C7_NUM': 'PC1',
+            'C7_ITEM': '01',
+            'C7_TOTAL': '400',
+            'C7_EMISSAO': '20260510',
+        }])
+        recebimentos = pd.DataFrame([{
+            'D1_FILIAL': '01',
+            'D1_PEDIDO': 'PC1',
+            'D1_ITEMPC': '01',
+            'D1_TOTAL': '200',
+            'D1_DTDIGIT': '20260615',
+        }])
+
+        custos = ComprasPmsETLService._montar_custos_temporais(
+            df_tarefas=tarefas,
+            df_mapeamentos=mapeamentos,
+            df_pedidos=pedidos,
+            df_recebimentos=recebimentos,
+        )
+        por_competencia = {custo.competencia: custo for custo in custos}
+
+        self.assertEqual(por_competencia[date(2026, 5, 1)].custo_empenhado, Decimal('400'))
+        self.assertEqual(por_competencia[date(2026, 5, 1)].custo_realizado, Decimal('0'))
+        self.assertEqual(por_competencia[date(2026, 6, 1)].custo_empenhado, Decimal('0'))
+        self.assertEqual(por_competencia[date(2026, 6, 1)].custo_realizado, Decimal('200'))
+
     def test_transformar_e_salvar_remove_dados_obsoletos(self):
         PmsProjeto.objects.create(
             filial='01',
@@ -687,6 +844,14 @@ class ComprasPmsETLServiceTests(TestCase):
             revisao='0001',
             tarefa='T-ANTIGA',
             edt='01',
+        )
+        PmsCustoTemporalMensal.objects.create(
+            filial='01',
+            projeto='ANTIGO',
+            revisao='0001',
+            tarefa='T-ANTIGA',
+            edt='01',
+            competencia=date(2026, 1, 1),
         )
         dados = {
             'af8': pd.DataFrame([{
@@ -726,12 +891,14 @@ class ComprasPmsETLServiceTests(TestCase):
                 'C7_NUM': 'PC1',
                 'C7_ITEM': '01',
                 'C7_TOTAL': '40',
+                'C7_EMISSAO': '20260510',
             }]),
             'sd1': pd.DataFrame([{
                 'D1_FILIAL': '01',
                 'D1_PEDIDO': 'PC1',
                 'D1_ITEMPC': '01',
                 'D1_TOTAL': '20',
+                'D1_DTDIGIT': '20260615',
             }]),
         }
 
@@ -742,6 +909,7 @@ class ComprasPmsETLServiceTests(TestCase):
         self.assertFalse(PmsEdt.objects.filter(projeto='ANTIGO').exists())
         self.assertFalse(PmsTarefa.objects.filter(projeto='ANTIGO').exists())
         self.assertFalse(PmsCustoTarefa.objects.filter(projeto='ANTIGO').exists())
+        self.assertFalse(PmsCustoTemporalMensal.objects.filter(projeto='ANTIGO').exists())
         self.assertEqual(PmsProjeto.objects.get().projeto, 'NOVO')
         self.assertEqual(PmsEdt.objects.get().projeto, 'NOVO')
         self.assertEqual(PmsTarefa.objects.get().tarefa, 'T1')
@@ -749,6 +917,7 @@ class ComprasPmsETLServiceTests(TestCase):
         self.assertEqual(custo.custo_previsto, Decimal('100'))
         self.assertEqual(custo.custo_empenhado, Decimal('40'))
         self.assertEqual(custo.custo_realizado, Decimal('20'))
+        self.assertEqual(PmsCustoTemporalMensal.objects.count(), 2)
         self.assertEqual(ComprasSyncLog.objects.get().status, ComprasSyncLog.STATUS_SUCESSO)
 
     def test_salvar_projetos_atualiza_por_chave_natural(self):

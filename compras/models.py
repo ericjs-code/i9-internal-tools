@@ -175,6 +175,41 @@ class PmsCustoTarefa(models.Model):
         return f"{self.projeto} | {self.tarefa} | R$ {self.custo_previsto}"
 
 
+class PmsCustoTemporalMensal(models.Model):
+    filial = models.CharField(max_length=20)
+    projeto = models.CharField(max_length=50)
+    revisao = models.CharField(max_length=20)
+    edt = models.CharField(max_length=50, blank=True, default='')
+    tarefa = models.CharField(max_length=50)
+    competencia = models.DateField()
+    custo_empenhado = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    custo_realizado = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Custo PMS Temporal Mensal"
+        verbose_name_plural = "Custos PMS Temporais Mensais"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['filial', 'projeto', 'revisao', 'tarefa', 'competencia'],
+                name='uniq_pms_custo_temporal',
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=['projeto', 'revisao', 'competencia'],
+                name='compras_pms_projeto_comp_idx',
+            ),
+            models.Index(
+                fields=['filial', 'projeto', 'revisao', 'edt', 'competencia'],
+                name='compras_pms_edt_comp_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.projeto} | {self.tarefa} | {self.competencia:%Y-%m}"
+
+
 class ComprasSyncLog(models.Model):
     STATUS_SUCESSO = 'SUCESSO'
     STATUS_ERRO = 'ERRO'

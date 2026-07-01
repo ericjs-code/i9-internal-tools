@@ -5,6 +5,7 @@ from .models import (
     ComprasSyncLog,
     PerguntaAvaliacao,
     PmsCustoTarefa,
+    PmsCustoTemporalMensal,
     PmsEdt,
     PmsProjeto,
     PmsTarefa,
@@ -56,6 +57,21 @@ class PmsCustoTarefaAdmin(admin.ModelAdmin):
     )
     search_fields = ('projeto', 'revisao', 'tarefa', 'edt')
     list_filter = ('filial', 'revisao')
+
+
+@admin.register(PmsCustoTemporalMensal)
+class PmsCustoTemporalMensalAdmin(admin.ModelAdmin):
+    list_display = (
+        'projeto',
+        'revisao',
+        'tarefa',
+        'edt',
+        'competencia',
+        'custo_empenhado',
+        'custo_realizado',
+    )
+    search_fields = ('projeto', 'revisao', 'tarefa', 'edt')
+    list_filter = ('filial', 'revisao', 'competencia')
 
 
 @admin.register(ComprasSyncLog)

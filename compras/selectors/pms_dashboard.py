@@ -4,7 +4,15 @@ import unicodedata
 from django.core.paginator import Paginator
 from django.db.models import Max
 
-from compras.models import ComprasSyncLog, PmsCustoTarefa, PmsEdt, PmsProjeto, PmsTarefa
+from compras.models import (
+    ComprasSyncLog,
+    PmsCustoTarefa,
+    PmsCustoTemporalMensal,
+    PmsEdt,
+    PmsProjeto,
+    PmsTarefa,
+)
+from compras.services.pms_executive_metrics import PmsExecutiveMetricsService
 from compras.services.pms_hierarchy import (
     calcular_indicadores_empenho,
     consolidar_custo_projeto,
@@ -47,7 +55,9 @@ class PmsDashboardSelector:
         projetos_base = cls._projetos_base()
         lista_projetos = list(cls._lista_projetos(projetos_base))
         projetos_info = cls._mapa_projetos(projetos_base)
-        projeto_filtro = filtros.get('projeto') or ''
+        projetos_filtro = cls._normalizar_projetos_filtro(filtros.get('projeto'))
+        projeto_filtro = projetos_filtro[0] if len(projetos_filtro) == 1 else ''
+        projetos_escopo = projetos_filtro or lista_projetos
         categorias_filtro = cls._normalizar_categorias_filtro(
             filtros.get('categorias')
             if 'categorias' in filtros
@@ -61,10 +71,12 @@ class PmsDashboardSelector:
             cls._listar_tarefas(projeto_filtro, revisao_filtro)
         )
         custos = cls._listar_custos(projeto_filtro, revisao_filtro)
-        custos_carteira = cls._listar_custos_carteira(lista_projetos)
+        custos_carteira = cls._listar_custos_carteira(projetos_escopo)
+        edts_carteira = cls._listar_edts_carteira(projetos_escopo)
         tarefas_carteira = cls._enriquecer_tarefas_categoria(
-            cls._listar_tarefas_carteira(lista_projetos)
+            cls._listar_tarefas_carteira(projetos_escopo)
         )
+        custos_temporais = cls._listar_custos_temporais(projetos_escopo)
 
         if categorias_filtro:
             tarefas = cls._filtrar_tarefas_por_categoria(tarefas, categorias_filtro)
@@ -78,8 +90,10 @@ class PmsDashboardSelector:
                 custos_carteira,
                 tarefas_carteira,
             )
+            edts_carteira = cls._filtrar_edts_por_tarefas(edts_carteira, tarefas_carteira)
 
         custos_escopo = custos if projeto_filtro else custos_carteira
+        edts_escopo = edts if projeto_filtro else edts_carteira
         tarefas_escopo = (
             tarefas
             if projeto_filtro
@@ -97,17 +111,30 @@ class PmsDashboardSelector:
             caminhos_edt=caminhos_edt,
         )
         linhas_paginadas = cls._paginar_linhas(linhas_hierarquia, filtros.get('page'))
+        analise_executiva = PmsExecutiveMetricsService.build(
+            custos=custos_escopo,
+            tarefas=tarefas_escopo,
+            edts=edts_escopo,
+            custos_temporais=custos_temporais,
+            projetos_info=projetos_info,
+        )
 
         return {
             'filtros': {
                 'projeto': projeto_filtro,
+                'projetos': projetos_filtro,
                 'categorias': categorias_filtro,
             },
-            'lista_projetos': lista_projetos,
+            'lista_projetos': cls._opcoes_projetos(lista_projetos, projetos_info),
             'categorias_disponiveis': cls._categorias_disponiveis(),
+            'pagination_querystring': cls._pagination_querystring(
+                projetos_filtro,
+                categorias_filtro,
+            ),
             'projeto_atual': projeto,
             'modo_carteira': not projeto_filtro,
             'kpis': cls._montar_kpis(custos_projeto),
+            **analise_executiva,
             'linhas_hierarquia': linhas_paginadas.object_list,
             'linhas_hierarquia_page': linhas_paginadas,
             'total_linhas_hierarquia': len(linhas_hierarquia),
@@ -236,13 +263,54 @@ class PmsDashboardSelector:
         )
 
     @staticmethod
+    def _listar_edts_carteira(projetos):
+        if not projetos:
+            return []
+        return list(
+            PmsEdt.objects
+            .filter(projeto__in=projetos)
+            .values('filial', 'projeto', 'revisao', 'edt', 'edt_pai', 'descricao', 'nivel')
+        )
+
+    @staticmethod
     def _listar_tarefas_carteira(projetos):
         if not projetos:
             return []
         return list(
             PmsTarefa.objects
             .filter(projeto__in=projetos)
-            .values('filial', 'projeto', 'revisao', 'edt', 'tarefa', 'descricao')
+            .values(
+                'filial',
+                'projeto',
+                'revisao',
+                'edt',
+                'tarefa',
+                'descricao',
+                'unidade',
+                'quantidade',
+                'data_inicio_prevista',
+                'data_fim_prevista',
+            )
+        )
+
+    @staticmethod
+    def _listar_custos_temporais(projetos):
+        if not projetos:
+            return []
+        return list(
+            PmsCustoTemporalMensal.objects
+            .filter(projeto__in=projetos)
+            .order_by('competencia', 'projeto', 'edt', 'tarefa')
+            .values(
+                'filial',
+                'projeto',
+                'revisao',
+                'edt',
+                'tarefa',
+                'competencia',
+                'custo_empenhado',
+                'custo_realizado',
+            )
         )
 
     @staticmethod
@@ -253,6 +321,44 @@ class PmsDashboardSelector:
             .distinct()
             .order_by('projeto')
         )
+
+    @staticmethod
+    def _normalizar_projetos_filtro(projetos):
+        if not projetos:
+            return []
+        if isinstance(projetos, str):
+            projetos = [projetos]
+
+        vistos = set()
+        normalizados = []
+        for projeto in projetos:
+            projeto = str(projeto or '').strip()
+            if projeto and projeto not in vistos:
+                vistos.add(projeto)
+                normalizados.append(projeto)
+        return normalizados
+
+    @staticmethod
+    def _opcoes_projetos(projetos, projetos_info):
+        return [
+            {
+                'codigo': projeto,
+                'descricao': projetos_info.get(projeto, ''),
+                'label': (
+                    f'{projeto} - {projetos_info[projeto]}'
+                    if projetos_info.get(projeto)
+                    else projeto
+                ),
+            }
+            for projeto in projetos
+        ]
+
+    @staticmethod
+    def _pagination_querystring(projetos, categorias):
+        params = []
+        params.extend(f'projeto={projeto}' for projeto in projetos)
+        params.extend(f'categorias={categoria}' for categoria in categorias)
+        return '&'.join(params)
 
     @staticmethod
     def _mapa_projetos(projetos_base):

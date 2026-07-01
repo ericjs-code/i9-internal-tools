@@ -12,6 +12,10 @@
     .chart-card { height: 380px; }
     .chart-wrapper { position: relative; height: 300px; max-height: 300px; }
     .chart-wrapper canvas { display: block; width: 100% !important; height: 100% !important; max-height: 300px; }
+    .chart-card-sm { height: 340px; }
+    .chart-card-sm .chart-wrapper { height: 260px; max-height: 260px; }
+    .choices__inner { min-height: 32px; padding: 2px 8px; border-color: #dee2e6; }
+    .choices__list--multiple .choices__item { background-color: var(--azul-principal); border-color: var(--azul-principal); }
     .hierarchy-row-edt { background: #f8f9fa; font-weight: 700; }
     .hierarchy-code { font-family: monospace; white-space: nowrap; }
     .hierarchy-cell {
@@ -62,12 +66,12 @@
         <form method="get" class="row g-3 align-items-end">
             <div class="col-md-6">
                 <label class="form-label small fw-bold">Projeto</label>
-                <select name="projeto" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="">Todos os projetos</option>
+                <select name="projeto" id="filtroProjetos" class="form-select form-select-sm" multiple>
                     {% for projeto in lista_projetos %}
-                        <option value="{{ projeto }}" {% if filtros.projeto == projeto %}selected{% endif %}>{{ projeto }}</option>
+                        <option value="{{ projeto.codigo }}" {% if projeto.codigo in filtros.projetos %}selected{% endif %}>{{ projeto.label }}</option>
                     {% endfor %}
                 </select>
+                <div class="form-text small">Nenhum projeto selecionado exibe todos os projetos.</div>
             </div>
             <div class="col-md-auto ms-auto d-flex gap-2">
                 <button type="submit" class="btn btn-sm btn-primary px-3">
@@ -148,6 +152,41 @@
     </div>
 
     <div class="row g-4 mb-4">
+        <div class="col-md">
+            <div class="card kpi-card h-100 p-3">
+                <div class="kpi-title mb-1">Média por Projeto</div>
+                <div class="kpi-value">R$ {{ kpis_executivos.media_custo_por_projeto|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card kpi-card h-100 p-3">
+                <div class="kpi-title mb-1">Mediana por Projeto</div>
+                <div class="kpi-value">R$ {{ kpis_executivos.mediana_custo_por_projeto|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card kpi-card h-100 p-3">
+                <div class="kpi-title mb-1">Maior Custo</div>
+                <div class="fw-bold">{{ kpis_executivos.projeto_maior_custo.projeto|default:"-" }}</div>
+                <div class="small text-muted">{{ kpis_executivos.projeto_maior_custo.descricao|default:"Sem projeto" }}</div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card kpi-card h-100 p-3">
+                <div class="kpi-title mb-1">Maior % Acima do Empenho</div>
+                <div class="fw-bold">{{ kpis_executivos.projeto_maior_acima_empenho.projeto|default:"-" }}</div>
+                <div class="small text-muted">{{ kpis_executivos.projeto_maior_acima_empenho.percentual_acima_empenho|floatformat:2 }}%</div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card kpi-card h-100 p-3">
+                <div class="kpi-title mb-1">Fora da Curva</div>
+                <div class="kpi-value">{{ kpis_executivos.projetos_fora_curva }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
         <div class="col-lg-4">
             <div class="chart-card">
                 <h6 class="fw-bold text-secondary mb-3">Custo x Empenhado</h6>
@@ -175,6 +214,110 @@
         </div>
     </div>
 
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h6 class="fw-bold text-secondary mb-3">Eficiência: Volume x Custo Realizado</h6>
+                <div class="chart-wrapper">
+                    <canvas id="graficoEficiencia"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h6 class="fw-bold text-secondary mb-3">Matriz de Risco Financeiro</h6>
+                <div class="chart-wrapper">
+                    <canvas id="graficoRisco"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-card mb-4">
+        <h6 class="fw-bold text-secondary mb-3">Tendência Temporal Financeira</h6>
+        {% if serie_temporal.disponivel %}
+            <div class="chart-wrapper">
+                <canvas id="graficoTemporal"></canvas>
+            </div>
+        {% else %}
+            <div class="alert alert-light border mb-0">
+                {{ serie_temporal.limite }}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-4">
+            <div class="chart-card chart-card-sm">
+                <h6 class="fw-bold text-secondary mb-3">Pareto Projetos</h6>
+                <div class="chart-wrapper">
+                    <canvas id="graficoParetoProjetos"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="chart-card chart-card-sm">
+                <h6 class="fw-bold text-secondary mb-3">Pareto EDT/WBS</h6>
+                <div class="chart-wrapper">
+                    <canvas id="graficoParetoEdts"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="chart-card chart-card-sm">
+                <h6 class="fw-bold text-secondary mb-3">Pareto Tarefas</h6>
+                <div class="chart-wrapper">
+                    <canvas id="graficoParetoTarefas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-container mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold text-secondary m-0">EDTs Críticas por Consumo</h6>
+            <span class="badge bg-light text-dark">{{ kpis_executivos.edt_mais_critica.edt|default:"-" }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Projeto</th>
+                        <th>EDT/WBS</th>
+                        <th>Descrição</th>
+                        <th class="text-end">Custo</th>
+                        <th class="text-end">Empenhado</th>
+                        <th class="text-end">% no Total</th>
+                        <th class="text-end">Burn rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for edt in analise_edts %}
+                        <tr>
+                            <td>{{ edt.projeto }}</td>
+                            <td class="hierarchy-code">{{ edt.edt }}</td>
+                            <td>{{ edt.descricao|default:"-" }}</td>
+                            <td class="text-end">R$ {{ edt.custo_realizado|floatformat:2 }}</td>
+                            <td class="text-end">R$ {{ edt.custo_empenhado|floatformat:2 }}</td>
+                            <td class="text-end">{{ edt.participacao_custo|floatformat:2 }}%</td>
+                            <td class="text-end">
+                                {% if edt.burn_rate %}
+                                    R$ {{ edt.burn_rate|floatformat:2 }}/dia
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-3">Nenhuma EDT com custo para exibir.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     {% if projeto_atual %}
     <div class="card border-0 shadow-sm rounded-4">
         <div class="card-body d-flex flex-wrap justify-content-between align-items-center p-3 gap-3">
@@ -194,10 +337,10 @@
                     <ul class="pagination pagination-sm mb-0">
                         {% if linhas_hierarquia_page.has_previous %}
                             <li class="page-item">
-                                <a class="page-link" href="?page=1{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">&laquo;</a>
+                                <a class="page-link" href="?page=1{% if pagination_querystring %}&{{ pagination_querystring }}{% endif %}">&laquo;</a>
                             </li>
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ linhas_hierarquia_page.previous_page_number }}{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">Anterior</a>
+                                <a class="page-link" href="?page={{ linhas_hierarquia_page.previous_page_number }}{% if pagination_querystring %}&{{ pagination_querystring }}{% endif %}">Anterior</a>
                             </li>
                         {% endif %}
 
@@ -206,17 +349,17 @@
                                 <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
                             {% elif num > linhas_hierarquia_page.number|add:'-3' and num < linhas_hierarquia_page.number|add:'3' %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ num }}{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">{{ num }}</a>
+                                    <a class="page-link" href="?page={{ num }}{% if pagination_querystring %}&{{ pagination_querystring }}{% endif %}">{{ num }}</a>
                                 </li>
                             {% endif %}
                         {% endfor %}
 
                         {% if linhas_hierarquia_page.has_next %}
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ linhas_hierarquia_page.next_page_number }}{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">Próxima</a>
+                                <a class="page-link" href="?page={{ linhas_hierarquia_page.next_page_number }}{% if pagination_querystring %}&{{ pagination_querystring }}{% endif %}">Próxima</a>
                             </li>
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ linhas_hierarquia_page.paginator.num_pages }}{% if filtros.projeto %}&projeto={{ filtros.projeto }}{% endif %}">&raquo;</a>
+                                <a class="page-link" href="?page={{ linhas_hierarquia_page.paginator.num_pages }}{% if pagination_querystring %}&{{ pagination_querystring }}{% endif %}">&raquo;</a>
                             </li>
                         {% endif %}
                     </ul>
@@ -318,8 +461,16 @@
 {{ grafico_projetos|json_script:"grafico-projetos-data" }}
 {{ grafico_edts|json_script:"grafico-edts-data" }}
 {{ grafico_tarefas|json_script:"grafico-tarefas-data" }}
+{{ grafico_eficiencia|json_script:"grafico-eficiencia-data" }}
+{{ serie_temporal|json_script:"serie-temporal-data" }}
+{{ pareto_projetos|json_script:"pareto-projetos-data" }}
+{{ pareto_edts|json_script:"pareto-edts-data" }}
+{{ pareto_tarefas|json_script:"pareto-tarefas-data" }}
+{{ matriz_risco|json_script:"matriz-risco-data" }}
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 <script>
     function pmsTreeTable() {
         return {
@@ -337,11 +488,32 @@
     const graficoProjetos = JSON.parse(document.getElementById('grafico-projetos-data').textContent);
     const graficoEdts = JSON.parse(document.getElementById('grafico-edts-data').textContent);
     const graficoTarefas = JSON.parse(document.getElementById('grafico-tarefas-data').textContent);
+    const graficoEficiencia = JSON.parse(document.getElementById('grafico-eficiencia-data').textContent);
+    const serieTemporal = JSON.parse(document.getElementById('serie-temporal-data').textContent);
+    const paretoProjetos = JSON.parse(document.getElementById('pareto-projetos-data').textContent);
+    const paretoEdts = JSON.parse(document.getElementById('pareto-edts-data').textContent);
+    const paretoTarefas = JSON.parse(document.getElementById('pareto-tarefas-data').textContent);
+    const matrizRisco = JSON.parse(document.getElementById('matriz-risco-data').textContent);
     const ranking = {% if modo_carteira %}graficoProjetos{% else %}{
         labels: graficoEdts.labels,
         custo: graficoEdts.data,
         empenhado: graficoEdts.empenhado
     }{% endif %};
+    const money = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    if (document.getElementById('filtroProjetos') && window.Choices) {
+        new Choices('#filtroProjetos', {
+            removeItemButton: true,
+            searchEnabled: true,
+            shouldSort: false,
+            placeholder: true,
+            placeholderValue: 'Todos os projetos',
+            searchPlaceholderValue: 'Pesquisar código ou descrição',
+            itemSelectText: '',
+            noResultsText: 'Nenhum projeto encontrado',
+            noChoicesText: 'Nenhum projeto disponível',
+        });
+    }
 
     new Chart(document.getElementById('graficoCustoEmpenho'), {
         type: 'bar',
@@ -414,6 +586,158 @@
             scales: { x: { beginAtZero: true } }
         }
     });
+
+    new Chart(document.getElementById('graficoEficiencia'), {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Projetos',
+                data: graficoEficiencia.datasets[0].data,
+                backgroundColor: (context) => context.raw && context.raw.outlier ? '#dc3545' : '#0d6efd',
+                pointRadius: 6,
+                pointHoverRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const item = context.raw || {};
+                            return `${item.projeto} | Custo ${money(item.y)} | Volume ${money(item.x)} | Acima do empenho ${Number(item.percentualAcimaEmpenho || 0).toFixed(2)}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { beginAtZero: true, title: { display: true, text: 'Volume do projeto' } },
+                y: { beginAtZero: true, title: { display: true, text: 'Custo realizado' } }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('graficoRisco'), {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Projetos',
+                data: matrizRisco.pontos,
+                backgroundColor: (context) => {
+                    const quadrante = context.raw && context.raw.quadrante;
+                    if (quadrante === 'alto_custo_acima_empenho') return '#dc3545';
+                    if (quadrante === 'alto_custo_dentro_empenho') return '#ffc107';
+                    if (quadrante === 'baixo_custo_acima_empenho') return '#fd7e14';
+                    return '#198754';
+                },
+                pointRadius: 6,
+                pointHoverRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const item = context.raw || {};
+                            return `${item.projeto} | Impacto ${money(item.x)} | Acima do empenho ${Number(item.y || 0).toFixed(2)}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { beginAtZero: true, title: { display: true, text: 'Impacto financeiro' } },
+                y: { beginAtZero: true, title: { display: true, text: '% acima do empenho' } }
+            }
+        }
+    });
+
+    if (serieTemporal.disponivel && document.getElementById('graficoTemporal')) {
+        new Chart(document.getElementById('graficoTemporal'), {
+            type: 'line',
+            data: {
+                labels: serieTemporal.labels,
+                datasets: [
+                    {
+                        label: 'Custo realizado',
+                        data: serieTemporal.realizado,
+                        borderColor: '#198754',
+                        backgroundColor: 'rgba(25, 135, 84, 0.08)',
+                        tension: 0.25
+                    },
+                    {
+                        label: 'Empenhado',
+                        data: serieTemporal.empenhado,
+                        borderColor: '#ffc107',
+                        backgroundColor: 'rgba(255, 193, 7, 0.12)',
+                        tension: 0.25
+                    },
+                    {
+                        label: 'Média móvel 3m',
+                        data: serieTemporal.media_movel_3m,
+                        borderColor: '#0d6efd',
+                        borderDash: [6, 4],
+                        tension: 0.25
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    function renderPareto(canvasId, data, color) {
+        new Chart(document.getElementById(canvasId), {
+            data: {
+                labels: data.labels,
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Custo',
+                        data: data.valores,
+                        backgroundColor: color,
+                        borderRadius: 4,
+                        yAxisID: 'y'
+                    },
+                    {
+                        type: 'line',
+                        label: '% acumulado',
+                        data: data.percentual_acumulado,
+                        borderColor: '#dc3545',
+                        tension: 0.25,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            afterLabel(context) {
+                                return data.tooltip_labels[context.dataIndex] || '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, position: 'left' },
+                    y1: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    }
+
+    renderPareto('graficoParetoProjetos', paretoProjetos, '#0d6efd');
+    renderPareto('graficoParetoEdts', paretoEdts, '#198754');
+    renderPareto('graficoParetoTarefas', paretoTarefas, '#141C3C');
 </script>
 {% endblock %}
 

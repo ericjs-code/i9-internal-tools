@@ -6,7 +6,14 @@ import pandas as pd
 from django.db import transaction
 from django.utils import timezone
 
-from compras.models import ComprasSyncLog, PmsCustoTarefa, PmsEdt, PmsProjeto, PmsTarefa
+from compras.models import (
+    ComprasSyncLog,
+    PmsCustoTarefa,
+    PmsCustoTemporalMensal,
+    PmsEdt,
+    PmsProjeto,
+    PmsTarefa,
+)
 from core.services.protheus_etl import ProtheusBaseETL
 
 
@@ -84,9 +91,21 @@ class ComprasPmsETLService(ProtheusBaseETL):
                 df_pedidos=dados_limpos.get('sc7', pd.DataFrame()),
                 df_recebimentos=dados_limpos.get('sd1', pd.DataFrame()),
             )
+            custos_temporais = cls._montar_custos_temporais(
+                df_tarefas=dados_limpos.get('af9', pd.DataFrame()),
+                df_mapeamentos=dados_limpos.get('afg', pd.DataFrame()),
+                df_pedidos=dados_limpos.get('sc7', pd.DataFrame()),
+                df_recebimentos=dados_limpos.get('sd1', pd.DataFrame()),
+            )
 
             linhas_lidas = sum(len(df) for df in dados_limpos.values())
-            linhas_gravadas = len(projetos) + len(edts) + len(tarefas) + len(custos)
+            linhas_gravadas = (
+                len(projetos)
+                + len(edts)
+                + len(tarefas)
+                + len(custos)
+                + len(custos_temporais)
+            )
 
             with transaction.atomic():
                 cls._limpar_dados_materializados()
@@ -94,6 +113,7 @@ class ComprasPmsETLService(ProtheusBaseETL):
                 cls._salvar_edts(edts)
                 cls._salvar_tarefas(tarefas)
                 cls._salvar_custos(custos)
+                cls._salvar_custos_temporais(custos_temporais)
 
                 sync_log.status = ComprasSyncLog.STATUS_SUCESSO
                 sync_log.finalizado_em = timezone.now()
@@ -120,6 +140,7 @@ class ComprasPmsETLService(ProtheusBaseETL):
 
     @staticmethod
     def _limpar_dados_materializados():
+        PmsCustoTemporalMensal.objects.all().delete()
         PmsCustoTarefa.objects.all().delete()
         PmsTarefa.objects.all().delete()
         PmsEdt.objects.all().delete()
@@ -352,6 +373,171 @@ class ComprasPmsETLService(ProtheusBaseETL):
                 },
             )
 
+    @staticmethod
+    def _salvar_custos_temporais(custos):
+        for custo in custos:
+            PmsCustoTemporalMensal.objects.update_or_create(
+                filial=custo.filial,
+                projeto=custo.projeto,
+                revisao=custo.revisao,
+                tarefa=custo.tarefa,
+                competencia=custo.competencia,
+                defaults={
+                    'edt': custo.edt,
+                    'custo_empenhado': custo.custo_empenhado,
+                    'custo_realizado': custo.custo_realizado,
+                },
+            )
+
+    @classmethod
+    def _montar_custos_temporais(
+        cls,
+        df_tarefas,
+        df_mapeamentos,
+        df_pedidos,
+        df_recebimentos,
+    ):
+        if df_tarefas.empty or df_mapeamentos.empty or df_pedidos.empty:
+            return []
+
+        tarefas_por_chave = cls._tarefas_por_chave(df_tarefas)
+        rateios_por_sc = cls._rateios_por_solicitacao(df_mapeamentos)
+        rateios_por_pedido = {}
+        pedidos_processados = set()
+        agregados = {}
+
+        for _, row in df_pedidos.iterrows():
+            chave_sc = (
+                cls._texto(row.get('C7_FILIAL')),
+                cls._texto(row.get('C7_NUMSC')),
+                cls._texto(row.get('C7_ITEMSC')),
+            )
+            chave_pedido = (
+                cls._texto(row.get('C7_FILIAL')),
+                cls._texto(row.get('C7_NUM')),
+                cls._texto(row.get('C7_ITEM')),
+            )
+            rateios = rateios_por_sc.get(chave_sc)
+            if not rateios or not all(chave_pedido):
+                continue
+
+            rateios_existentes = rateios_por_pedido.get(chave_pedido)
+            if rateios_existentes is not None and rateios_existentes != rateios:
+                raise ValueError(
+                    'Pedido vinculado a mais de uma distribuicao PMS: '
+                    f'{chave_pedido}'
+                )
+            rateios_por_pedido[chave_pedido] = rateios
+
+            if chave_pedido in pedidos_processados:
+                continue
+            pedidos_processados.add(chave_pedido)
+
+            competencia = cls._competencia_financeira(
+                row,
+                ['C7_EMISSAO', 'C7_DTLANC'],
+            )
+            if not competencia:
+                continue
+
+            valor_pedido = cls._decimal(row.get('C7_TOTAL'))
+            for chave_tarefa, proporcao in rateios:
+                cls._somar_custo_temporal(
+                    agregados,
+                    tarefas_por_chave,
+                    chave_tarefa,
+                    competencia,
+                    custo_empenhado=valor_pedido * proporcao,
+                )
+
+        if not df_recebimentos.empty:
+            for _, row in df_recebimentos.iterrows():
+                chave_pedido = (
+                    cls._texto(row.get('D1_FILIAL')),
+                    cls._texto(row.get('D1_PEDIDO')),
+                    cls._texto(row.get('D1_ITEMPC')),
+                )
+                rateios = rateios_por_pedido.get(chave_pedido)
+                if not rateios:
+                    continue
+
+                competencia = cls._competencia_financeira(
+                    row,
+                    ['D1_DTDIGIT', 'D1_EMISSAO', 'D1_DATACUS'],
+                )
+                if not competencia:
+                    continue
+
+                valor_recebido = cls._decimal(row.get('D1_TOTAL'))
+                for chave_tarefa, proporcao in rateios:
+                    cls._somar_custo_temporal(
+                        agregados,
+                        tarefas_por_chave,
+                        chave_tarefa,
+                        competencia,
+                        custo_realizado=valor_recebido * proporcao,
+                    )
+
+        return [
+            PmsCustoTemporalMensal(
+                filial=filial,
+                projeto=projeto,
+                revisao=revisao,
+                edt=valores['edt'],
+                tarefa=tarefa,
+                competencia=competencia,
+                custo_empenhado=valores['custo_empenhado'],
+                custo_realizado=valores['custo_realizado'],
+            )
+            for (
+                filial,
+                projeto,
+                revisao,
+                tarefa,
+                competencia,
+            ), valores in agregados.items()
+        ]
+
+    @classmethod
+    def _tarefas_por_chave(cls, df_tarefas):
+        tarefas = {}
+        for _, row in df_tarefas.iterrows():
+            chave = (
+                cls._texto(row.get('AF9_FILIAL')),
+                cls._texto(row.get('AF9_PROJET')),
+                cls._texto(row.get('AF9_REVISA')),
+                cls._texto(row.get('AF9_TAREFA')),
+            )
+            if all(chave):
+                tarefas[chave] = cls._texto(row.get('AF9_EDTPAI'))
+        return tarefas
+
+    @classmethod
+    def _somar_custo_temporal(
+        cls,
+        agregados,
+        tarefas_por_chave,
+        chave_tarefa,
+        competencia,
+        custo_empenhado=ZERO,
+        custo_realizado=ZERO,
+    ):
+        if chave_tarefa not in tarefas_por_chave:
+            return
+
+        filial, projeto, revisao, tarefa = chave_tarefa
+        chave = (filial, projeto, revisao, tarefa, competencia)
+        valores = agregados.setdefault(
+            chave,
+            {
+                'edt': tarefas_por_chave[chave_tarefa],
+                'custo_empenhado': ZERO,
+                'custo_realizado': ZERO,
+            },
+        )
+        valores['custo_empenhado'] += custo_empenhado
+        valores['custo_realizado'] += custo_realizado
+
     @classmethod
     def _custos_financeiros_por_tarefa(
         cls,
@@ -545,6 +731,14 @@ class ComprasPmsETLService(ProtheusBaseETL):
         if pd.isna(parsed):
             return None
         return parsed.date()
+
+    @classmethod
+    def _competencia_financeira(cls, row, colunas):
+        for coluna in colunas:
+            data = cls._data(row.get(coluna))
+            if data:
+                return data.replace(day=1)
+        return None
 
     @staticmethod
     def _deduplicar(registros, key_func):
